@@ -139,8 +139,39 @@ def handle_calculate_IK(req):
      
             # Calculate joint angles using Geometric IK method
 
-		
+            ## Preparation of variables: substitution with provided values in dict 's'
+                         
+            ##distance_j2_j3 = a2 #1.25m default
+            distance_j2_j3 = a2.subs(s)
+            ##krurdf210.urdf.xacro joints
+            ##fixed variable: these can be moved outside the for loop later
+            distance_j3_j4 = sqrt(0.96**2 + ((-0.054)-1.25)**2)
+            distance_j4_j5 = sqrt(0.54**2 + 0.96**2)
 
+            ## vertical offset is this needed?
+            distance_j3_j4_d_i = abs(a3).subs(s)
+
+            ## see the description in the write up 
+            angle_j3_j4 = pi - asin(distance_j3_j4_d_i / distance_j3_j4)
+            
+            ##using cosine rule to calculate the middle angle between the known sides
+            distance_j3_j5 = sqrt(distance_j3_j4**2 + distance_j4_j5**2 - 2*distance_j3_j4*distance_j4_j5*cos(angle_j3_j4))
+
+            ##calculating matrix from 3 to 6
+            eef_position = Matrix([[px],
+                                  [py],
+                                  [pz]])
+
+            ##eef_offset = d7 # 0.303m default
+            eef_offset = d7.subs(s)
+            eef_adjustment = Matrix([[eef_length],
+                             [0],
+                             [0]]) 
+
+            R_yqr = simplify(rot_z(yaw) * rot_y(pitch) * rot_x(roll))
+
+            ## by the definition in the lecture
+            w_c = eef_position - R_yqr * eef_adjustment
 
             # Populate response for the IK request
             # In the next line replace theta1,theta2...,theta6 by your joint angle variables
