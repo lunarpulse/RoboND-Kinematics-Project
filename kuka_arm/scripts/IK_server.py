@@ -25,109 +25,108 @@ def handle_calculate_IK(req):
         print "No valid poses received"
         return -1
     else:
+
+        # Define DH param symbols ![]()
+        ##   alpha i-1 -> twist angle between Z i-1 and Z i along X i-1 
+        alpha0, alpha1, alpha2, alpha3, alpha4, alpha5, alpha6 = symbols('alpha0:7')
+        ##   a i-1 -> link length between Z i-1 and Z i along X i-1
+        a0, a1, a2, a3, a4, a5, a6 = symbols('a0:7')
+        ##   d i -> Link offset between X i-1 and X i along Z i
+        d1, d2, d3, d4, d5, d6, d7 = symbols('d1:8')
+        
+        # Joint angle symbols
+        
+        ## quaternion i -> angle  between X i-1 and X i along Z i
+        quaternion1, quaternion2, quaternion3, quaternion4, quaternion5, quaternion6, quaternion7 = symbols('quaternion1:8')
+
+        # Modified DH params
+        s = {   alpha0:     0, a0:      0, d1:  0.75,
+                alpha1: -pi/2, a1:   0.35, d2:     0, quaternion2: quaternion2-pi/2,
+                alpha2:     0, a2:   1.25, d3:     0, 
+                alpha3: -pi/2, a3: -0.054, d4:   1.5,
+                alpha4:  pi/2, a4:      0, d5:     0,
+                alpha5: -pi/2, a5:      0, d6:     0,
+                alpha6:     0, a6:      0, d7: 0.303, quaternion7:       0       }
+        
+        # Define Modified DH Transformation matrix
+        ##  Correction of URDF vs. DH convention
+
+        ## 90 degree rotation about the y-axis
+        R_yaxis = Matrix([[ cos(-pi/2), 0, sin(-pi/2), 0],
+                    [          0, 1,          0, 0],
+                    [-sin(-pi/2), 0, cos(-pi/2), 0],
+                    [          0, 0,          0, 1]])
+        ## 180 degree rotation about the z-axis
+        R_zaxis = Matrix([[cos(pi), -sin(pi), 0, 0],
+                    [sin(pi),  cos(pi), 0, 0],
+                    [      0,        0, 1, 0],
+                    [      0,        0, 0, 1]])
+        
+        R_correlation = R_zaxis * R_yaxis
+        
+        # Create individual transformation matrices !(relative translation and orientation of link i-1 to link i)[https://d17h27t6h515a5.cloudfront.net/topher/2017/May/592d6644_dh-transform-matrix/dh-transform-matrix.png]
+
+        T0_1 = Matrix([[            cos(quaternion1),            -sin(quaternion1),            0,              a0],
+                    [sin(quaternion1)*cos(alpha0), cos(quaternion1)*cos(alpha0), -sin(alpha0), -sin(alpha0)*d1],
+                    [sin(quaternion1)*sin(alpha0), cos(quaternion1)*sin(alpha0),  cos(alpha0),  cos(alpha0)*d1],
+                    [                  0,                   0,            0,               1]])
+        T0_1 = T0_1.subs(s)
+
+        T1_2 = Matrix([[            cos(quaternion2),            -sin(quaternion2),            0,              a1],
+                    [sin(quaternion2)*cos(alpha1), cos(quaternion2)*cos(alpha1), -sin(alpha1), -sin(alpha1)*d2],
+                    [sin(quaternion2)*sin(alpha1), cos(quaternion2)*sin(alpha1),  cos(alpha1),  cos(alpha1)*d2],
+                    [                  0,                   0,            0,               1]])
+        T1_2 = T1_2.subs(s)
+
+        T2_3 = Matrix([[            cos(quaternion3),            -sin(quaternion3),            0,              a2],
+                    [sin(quaternion3)*cos(alpha2), cos(quaternion3)*cos(alpha2), -sin(alpha2), -sin(alpha2)*d3],
+                    [sin(quaternion3)*sin(alpha2), cos(quaternion3)*sin(alpha2),  cos(alpha2),  cos(alpha2)*d3],
+                    [                  0,                   0,            0,               1]])
+        T2_3 = T2_3.subs(s)
+
+        T3_4 = Matrix([[            cos(quaternion4),            -sin(quaternion4),            0,              a3],
+                    [sin(quaternion4)*cos(alpha3), cos(quaternion4)*cos(alpha3), -sin(alpha3), -sin(alpha3)*d4],
+                    [sin(quaternion4)*sin(alpha3), cos(quaternion4)*sin(alpha3),  cos(alpha3),  cos(alpha3)*d4],
+                    [                  0,                   0,            0,               1]])
+        T3_4 = T3_4.subs(s)
+
+        T4_5 = Matrix([[            cos(quaternion5),            -sin(quaternion5),            0,              a4],
+                    [sin(quaternion5)*cos(alpha4), cos(quaternion5)*cos(alpha4), -sin(alpha4), -sin(alpha4)*d5],
+                    [sin(quaternion5)*sin(alpha4), cos(quaternion5)*sin(alpha4),  cos(alpha4),  cos(alpha4)*d5],
+                    [                  0,                   0,            0,               1]])
+        T4_5 = T4_5.subs(s)
+            
+        T5_6 = Matrix([[            cos(quaternion6),            -sin(quaternion6),            0,              a5],
+                    [sin(quaternion6)*cos(alpha5), cos(quaternion6)*cos(alpha5), -sin(alpha5), -sin(alpha5)*d6],
+                    [sin(quaternion6)*sin(alpha5), cos(quaternion6)*sin(alpha5),  cos(alpha5),  cos(alpha5)*d6],
+                    [                  0,                   0,            0,               1]])
+        T5_6 = T5_6.subs(s)
+
+        T6_EEF = Matrix([[            cos(quaternion7),            -sin(quaternion7),            0,              a6],
+                    [sin(quaternion7)*cos(alpha6), cos(quaternion7)*cos(alpha6), -sin(alpha6), -sin(alpha6)*d7],
+                    [sin(quaternion7)*sin(alpha6), cos(quaternion7)*sin(alpha6),  cos(alpha6),  cos(alpha6)*d7],
+                    [                  0,                   0,            0,               1]])
+        T6_EEF = T6_EEF.subs(s)
+
+        T0_2 = T0_1 * T1_2
+        T0_3 = simplify(T0_2 * T2_3)
+        T0_4 = T0_3 * T3_4
+        T0_5 = T0_4 * T4_5
+        T0_6 = T0_5 * T5_6 
+        #simplify only T0_EFF and T0_3 as others are intermediate calculations no need of simplification in optimistaion phase
+        T0_EEF = T0_6 * T6_EEF
+
+        ## Corrected DH convention to URDF frame
+        T_corrected = simplify(T0_EEF * R_correlation) 
+        
         # Initialize service response
         joint_trajectory_list = []
         for x in xrange(0, len(req.poses)):
             # IK code starts here
             joint_trajectory_point = JointTrajectoryPoint()
 
-            # Define DH param symbols ![]()
-
-            ##   alpha i-1 -> twist angle between Z i-1 and Z i along X i-1 
-            alpha0, alpha1, alpha2, alpha3, alpha4, alpha5, alpha6 = symbols('alpha0:7')
-            ##   a i-1 -> link length between Z i-1 and Z i along X i-1
-            a0, a1, a2, a3, a4, a5, a6 = symbols('a0:7')
-            ##   d i -> Link offset between X i-1 and X i along Z i
-            d1, d2, d3, d4, d5, d6, d7 = symbols('d1:8')
-            
-            # Joint angle symbols
-            
-            ## quaternion i -> angle  between X i-1 and X i along Z i
-            quaternion1, quaternion2, quaternion3, quaternion4, quaternion5, quaternion6, quaternion7 = symbols('quaternion1:8')
-
-            # Modified DH params
-            s = {   alpha0:     0, a0:      0, d1:  0.75,
-                    alpha1: -pi/2, a1:   0.35, d2:     0, quaternion2: quaternion2-pi/2,
-                    alpha2:     0, a2:   1.25, d3:     0, 
-                    alpha3: -pi/2, a3: -0.054, d4:   1.5,
-                    alpha4:  pi/2, a4:      0, d5:     0,
-                    alpha5: -pi/2, a5:      0, d6:     0,
-                    alpha6:     0, a6:      0, d7: 0.303, quaternion7:       0       }
-            
-            # Define Modified DH Transformation matrix
-            ##  Correction of URDF vs. DH convention
-
-            ## 90 degree rotation about the y-axis
-            R_yaxis = Matrix([[ cos(-pi/2), 0, sin(-pi/2), 0],
-                        [          0, 1,          0, 0],
-                        [-sin(-pi/2), 0, cos(-pi/2), 0],
-                        [          0, 0,          0, 1]])
-            ## 180 degree rotation about the z-axis
-            R_zaxis = Matrix([[cos(pi), -sin(pi), 0, 0],
-                        [sin(pi),  cos(pi), 0, 0],
-                        [      0,        0, 1, 0],
-                        [      0,        0, 0, 1]])
-            
-            R_correlation = simplify(R_zaxis * R_yaxis)
-            
-            
 
 
-            # Create individual transformation matrices !(relative translation and orientation of link i-1 to link i)[https://d17h27t6h515a5.cloudfront.net/topher/2017/May/592d6644_dh-transform-matrix/dh-transform-matrix.png]
-
-            T0_1 = Matrix([[            cos(quaternion1),            -sin(quaternion1),            0,              a0],
-                        [sin(quaternion1)*cos(alpha0), cos(quaternion1)*cos(alpha0), -sin(alpha0), -sin(alpha0)*d1],
-                        [sin(quaternion1)*sin(alpha0), cos(quaternion1)*sin(alpha0),  cos(alpha0),  cos(alpha0)*d1],
-                        [                  0,                   0,            0,               1]])
-            T0_1 = T0_1.subs(s)
-
-            T1_2 = Matrix([[            cos(quaternion2),            -sin(quaternion2),            0,              a1],
-                        [sin(quaternion2)*cos(alpha1), cos(quaternion2)*cos(alpha1), -sin(alpha1), -sin(alpha1)*d2],
-                        [sin(quaternion2)*sin(alpha1), cos(quaternion2)*sin(alpha1),  cos(alpha1),  cos(alpha1)*d2],
-                        [                  0,                   0,            0,               1]])
-            T1_2 = T1_2.subs(s)
-
-            T2_3 = Matrix([[            cos(quaternion3),            -sin(quaternion3),            0,              a2],
-                        [sin(quaternion3)*cos(alpha2), cos(quaternion3)*cos(alpha2), -sin(alpha2), -sin(alpha2)*d3],
-                        [sin(quaternion3)*sin(alpha2), cos(quaternion3)*sin(alpha2),  cos(alpha2),  cos(alpha2)*d3],
-                        [                  0,                   0,            0,               1]])
-            T2_3 = T2_3.subs(s)
-
-            T3_4 = Matrix([[            cos(quaternion4),            -sin(quaternion4),            0,              a3],
-                        [sin(quaternion4)*cos(alpha3), cos(quaternion4)*cos(alpha3), -sin(alpha3), -sin(alpha3)*d4],
-                        [sin(quaternion4)*sin(alpha3), cos(quaternion4)*sin(alpha3),  cos(alpha3),  cos(alpha3)*d4],
-                        [                  0,                   0,            0,               1]])
-            T3_4 = T3_4.subs(s)
-
-            T4_5 = Matrix([[            cos(quaternion5),            -sin(quaternion5),            0,              a4],
-                        [sin(quaternion5)*cos(alpha4), cos(quaternion5)*cos(alpha4), -sin(alpha4), -sin(alpha4)*d5],
-                        [sin(quaternion5)*sin(alpha4), cos(quaternion5)*sin(alpha4),  cos(alpha4),  cos(alpha4)*d5],
-                        [                  0,                   0,            0,               1]])
-            T4_5 = T4_5.subs(s)
-                
-            T5_6 = Matrix([[            cos(quaternion6),            -sin(quaternion6),            0,              a5],
-                        [sin(quaternion6)*cos(alpha5), cos(quaternion6)*cos(alpha5), -sin(alpha5), -sin(alpha5)*d6],
-                        [sin(quaternion6)*sin(alpha5), cos(quaternion6)*sin(alpha5),  cos(alpha5),  cos(alpha5)*d6],
-                        [                  0,                   0,            0,               1]])
-            T5_6 = T5_6.subs(s)
-
-            T6_EEF = Matrix([[            cos(quaternion7),            -sin(quaternion7),            0,              a6],
-                        [sin(quaternion7)*cos(alpha6), cos(quaternion7)*cos(alpha6), -sin(alpha6), -sin(alpha6)*d7],
-                        [sin(quaternion7)*sin(alpha6), cos(quaternion7)*sin(alpha6),  cos(alpha6),  cos(alpha6)*d7],
-                        [                  0,                   0,            0,               1]])
-            T6_EEF = T6_EEF.subs(s)
-
-            T0_2 = simplify(T0_1 * T1_2)
-            T0_3 = simplify(T0_2 * T2_3)
-            T0_4 = simplify(T0_3 * T3_4)
-            T0_5 = simplify(T0_4 * T4_5)
-            T0_6 = simplify(T0_5 * T5_6) 
-            #simplify only T0_EFF and T0_3 as others are intermediate calculations no need of simplification in optimistaion phase
-            T0_EEF = simplify(T0_6 * T6_EEF)
-
-            ## Corrected DH convention to URDF frame
-            T_corrected = simplify(T0_EEF * R_correlation) 
-            
             # Extract end-effector position and orientation from request
             # px,py,pz = end-effector position
             # roll, pitch, yaw = end-effector orientation
@@ -170,7 +169,7 @@ def handle_calculate_IK(req):
                           [sin(yaw),  cos(yaw), 0],
                           [     0,       0,     1]])
 
-            R_ypr = simplify(R_z * R_y * R_x)
+            R_ypr = R_z * R_y * R_x
             
             ## Correct orientation between DH convention and URDF 
             R_y_DH_URDF = Matrix([[ cos(-pi/2), 0, sin(-pi/2)],
@@ -180,7 +179,7 @@ def handle_calculate_IK(req):
             R_z_DH_URDF = Matrix([[cos(-pi/2), -sin(-pi/2), 0], 
                                   [sin(-pi/2),  cos(-pi/2), 0],
                                   [     0,       0,     1]])
-            R_ypr_adjusted = simplify(R_ypr *R_z_DH_URDF * R_y_DH_URDF)
+            R_ypr_adjusted = R_ypr *R_z_DH_URDF * R_y_DH_URDF
 
             ## by the definition in the lecture //!()[https://d17h27t6h515a5.cloudfront.net/topher/2017/May/592d74d1_equations/equations.png]
             w_c = eef_position - R_ypr * eef_adjustment
