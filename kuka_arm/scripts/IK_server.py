@@ -98,7 +98,7 @@ def handle_calculate_IK(req):
         T0_5 = T0_4 * T4_5
         T0_6 = T0_5 * T5_6 
         #simplify only T0_EFF and T0_3 as others are intermediate calculations no need of simplification in optimistaion phase
-        T0_EEF = simplify(T0_6 * T6_EEF)
+        T0_EEF = T0_6 * T6_EEF
 
         ## Corrected DH convention to URDF frame
         T_corrected = simplify(T0_EEF * R_correction) 
@@ -218,7 +218,7 @@ def handle_calculate_IK(req):
             R0_3 = R0_3.evalf(subs={quaternion1: theta1, quaternion2: theta2, quaternion3: theta3})
 
             ## the inverse matrix cancel the first three rotations
-            R3_6 = simplify(R0_3.T * R_ypr_adjusted)
+            R3_6 = R0_3.T * R_ypr_adjusted
 
             ## Find iota, kappa, zetta euler angles as done in lesson 2 part 8. ()[https://d17h27t6h515a5.cloudfront.net/topher/2017/May/591e1115_image-0/image-0.png]
 
