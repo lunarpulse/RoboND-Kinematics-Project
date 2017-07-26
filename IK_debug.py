@@ -105,6 +105,7 @@ def test_code(test_case):
     R_z_DH_URDF = Matrix([[cos(-pi/2), -sin(-pi/2), 0], 
                             [sin(-pi/2),  cos(-pi/2), 0],
                             [     0,       0,     1]])
+                            
     ## 90 degree rotation about the y-axis
     R_yaxis = Matrix([[ cos(-pi/2), 0, sin(-pi/2), 0],
                 [          0, 1,          0, 0],
@@ -121,17 +122,11 @@ def test_code(test_case):
     # Create individual transformation matrices !(relative translation and orientation of link i-1 to link i)[https://d17h27t6h515a5.cloudfront.net/topher/2017/May/592d6644_dh-transform-matrix/dh-transform-matrix.png]
 
     T0_1 = createTMatrix(alpha0, a0, d1, quaternion1 ).subs(s)
-
     T1_2 = createTMatrix(alpha1, a1, d2, quaternion2 ).subs(s)
-
     T2_3 = createTMatrix(alpha2, a2, d3, quaternion3 ).subs(s)
-
     T3_4 = createTMatrix(alpha3, a3, d4, quaternion4 ).subs(s)
-
     T4_5 = createTMatrix(alpha4, a4, d5, quaternion5 ).subs(s)
-        
     T5_6 = createTMatrix(alpha5, a5, d6, quaternion6 ).subs(s)
-
     T6_EEF = createTMatrix(alpha6, a6, d7, quaternion7 ).subs(s)
 
     T0_2 = T0_1 * T1_2
@@ -245,23 +240,24 @@ def test_code(test_case):
                     [T0_3[2,0], T0_3[2,1], T0_3[2,2]]])
     R0_3 = R0_3.evalf(subs={quaternion1: theta1, quaternion2: theta2, quaternion3: theta3})
 
-    ## for a valid rotation matrix the transpose is == to the inverse 
+    ## the inverse matrix cancel the first three rotations
     R3_6 = R0_3.T * R_ypr_adjusted
     
     print ("\n T0_3:")
     print(T0_3)
     print ("\n T_corrected:")
     print(T_corrected)
-    print ("\n R_ypr_adjusted:")
-    print (R_ypr_adjusted)
+
     ## Find iota, kappa, zetta euler angles as done in lesson 2 part 8. ()[https://d17h27t6h515a5.cloudfront.net/topher/2017/May/591e1115_image-0/image-0.png]
 
-    ## Method using euler_from_matrix assuming a yzy rotation rather than an xyz rotation
+    ## euler_from_matrix assuming a yzy rotation (j4 : y, j5: z, j6: y)
     iota, kappa, zetta = tf.transformations.euler_from_matrix(R3_6.tolist(), 'ryzy')
     theta4 = iota
     theta5 = kappa
     theta6 = zetta
 
+    print ("\n theta1, theta2, theta3 ,theta4, theta5, theta6:")
+    print (theta1, theta2, theta3 ,theta4, theta5, theta6)
     ## 
     ########################################################################################
     
