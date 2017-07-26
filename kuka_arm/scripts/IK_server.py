@@ -18,18 +18,6 @@ from geometry_msgs.msg import Pose
 from mpmath import *
 from sympy import *
 
-def createTMatrix(alpha, a, d, q ):
-
-    T = Matrix([[           cos(q),           -sin(q),           0,             a],
-
-                [sin(q)*cos(alpha), cos(q)*cos(alpha), -sin(alpha), -sin(alpha)*d],
-
-                [sin(q)*sin(alpha), cos(q)*sin(alpha),  cos(alpha),  cos(alpha)*d],
-
-                [                0,                 0,           0,             1]])
-
-    return(T)
-
 def handle_calculate_IK(req):
     rospy.loginfo("Received %s eef-poses from the plan" % len(req.poses))
     if len(req.poses) < 1:
@@ -84,13 +72,47 @@ def handle_calculate_IK(req):
         
         # Create individual transformation matrices !(relative translation and orientation of link i-1 to link i)[https://d17h27t6h515a5.cloudfront.net/topher/2017/May/592d6644_dh-transform-matrix/dh-transform-matrix.png]
 
-        T0_1 = createTMatrix(alpha0, a0, d1, quaternion1 ).subs(s)
-        T1_2 = createTMatrix(alpha1, a1, d2, quaternion2 ).subs(s)
-        T2_3 = createTMatrix(alpha2, a2, d3, quaternion3 ).subs(s)
-        T3_4 = createTMatrix(alpha3, a3, d4, quaternion4 ).subs(s)
-        T4_5 = createTMatrix(alpha4, a4, d5, quaternion5 ).subs(s)
-        T5_6 = createTMatrix(alpha5, a5, d6, quaternion6 ).subs(s)
-        T6_EEF = createTMatrix(alpha6, a6, d7, quaternion7 ).subs(s)
+        T0_1 = Matrix([[            cos(quaternion1),            -sin(quaternion1),            0,              a0],
+                    [sin(quaternion1)*cos(alpha0), cos(quaternion1)*cos(alpha0), -sin(alpha0), -sin(alpha0)*d1],
+                    [sin(quaternion1)*sin(alpha0), cos(quaternion1)*sin(alpha0),  cos(alpha0),  cos(alpha0)*d1],
+                    [                  0,                   0,            0,               1]])
+        T0_1 = T0_1.subs(s)
+
+        T1_2 = Matrix([[            cos(quaternion2),            -sin(quaternion2),            0,              a1],
+                    [sin(quaternion2)*cos(alpha1), cos(quaternion2)*cos(alpha1), -sin(alpha1), -sin(alpha1)*d2],
+                    [sin(quaternion2)*sin(alpha1), cos(quaternion2)*sin(alpha1),  cos(alpha1),  cos(alpha1)*d2],
+                    [                  0,                   0,            0,               1]])
+        T1_2 = T1_2.subs(s)
+
+        T2_3 = Matrix([[            cos(quaternion3),            -sin(quaternion3),            0,              a2],
+                    [sin(quaternion3)*cos(alpha2), cos(quaternion3)*cos(alpha2), -sin(alpha2), -sin(alpha2)*d3],
+                    [sin(quaternion3)*sin(alpha2), cos(quaternion3)*sin(alpha2),  cos(alpha2),  cos(alpha2)*d3],
+                    [                  0,                   0,            0,               1]])
+        T2_3 = T2_3.subs(s)
+
+        T3_4 = Matrix([[            cos(quaternion4),            -sin(quaternion4),            0,              a3],
+                    [sin(quaternion4)*cos(alpha3), cos(quaternion4)*cos(alpha3), -sin(alpha3), -sin(alpha3)*d4],
+                    [sin(quaternion4)*sin(alpha3), cos(quaternion4)*sin(alpha3),  cos(alpha3),  cos(alpha3)*d4],
+                    [                  0,                   0,            0,               1]])
+        T3_4 = T3_4.subs(s)
+
+        T4_5 = Matrix([[            cos(quaternion5),            -sin(quaternion5),            0,              a4],
+                    [sin(quaternion5)*cos(alpha4), cos(quaternion5)*cos(alpha4), -sin(alpha4), -sin(alpha4)*d5],
+                    [sin(quaternion5)*sin(alpha4), cos(quaternion5)*sin(alpha4),  cos(alpha4),  cos(alpha4)*d5],
+                    [                  0,                   0,            0,               1]])
+        T4_5 = T4_5.subs(s)
+            
+        T5_6 = Matrix([[            cos(quaternion6),            -sin(quaternion6),            0,              a5],
+                    [sin(quaternion6)*cos(alpha5), cos(quaternion6)*cos(alpha5), -sin(alpha5), -sin(alpha5)*d6],
+                    [sin(quaternion6)*sin(alpha5), cos(quaternion6)*sin(alpha5),  cos(alpha5),  cos(alpha5)*d6],
+                    [                  0,                   0,            0,               1]])
+        T5_6 = T5_6.subs(s)
+
+        T6_EEF = Matrix([[            cos(quaternion7),            -sin(quaternion7),            0,              a6],
+                    [sin(quaternion7)*cos(alpha6), cos(quaternion7)*cos(alpha6), -sin(alpha6), -sin(alpha6)*d7],
+                    [sin(quaternion7)*sin(alpha6), cos(quaternion7)*sin(alpha6),  cos(alpha6),  cos(alpha6)*d7],
+                    [                  0,                   0,            0,               1]])
+        T6_EEF = T6_EEF.subs(s)
 
         T0_2 = T0_1 * T1_2
         T0_3 = simplify(T0_2 * T2_3)
