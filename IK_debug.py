@@ -124,23 +124,23 @@ def test_code(test_case):
     T0_1 = createTMatrix(alpha0, a0, d1, quaternion1 ).subs(s)
     T1_2 = createTMatrix(alpha1, a1, d2, quaternion2 ).subs(s)
     T2_3 = createTMatrix(alpha2, a2, d3, quaternion3 ).subs(s)
-    T3_4 = createTMatrix(alpha3, a3, d4, quaternion4 ).subs(s)
-    T4_5 = createTMatrix(alpha4, a4, d5, quaternion5 ).subs(s)
-    T5_6 = createTMatrix(alpha5, a5, d6, quaternion6 ).subs(s)
-    T6_EEF = createTMatrix(alpha6, a6, d7, quaternion7 ).subs(s)
+    #T3_4 = createTMatrix(alpha3, a3, d4, quaternion4 ).subs(s)
+    #T4_5 = createTMatrix(alpha4, a4, d5, quaternion5 ).subs(s)
+    #T5_6 = createTMatrix(alpha5, a5, d6, quaternion6 ).subs(s)
+    #T6_EEF = createTMatrix(alpha6, a6, d7, quaternion7 ).subs(s)
 
     T0_2 = T0_1 * T1_2
     T0_3 = simplify(T0_2 * T2_3)
-    T0_4 = T0_3 * T3_4
-    T0_5 = T0_4 * T4_5
-    T0_6 = T0_5 * T5_6 
+    #T0_4 = T0_3 * T3_4
+    #T0_5 = T0_4 * T4_5
+    #T0_6 = T0_5 * T5_6 
     #simplify only T0_EFF and T0_3 as others are intermediate calculations no need of simplification in optimistaion phase
-    T0_EEF = T0_6 * T6_EEF
+    #T0_EEF = T0_6 * T6_EEF
 
 
 
     ## Corrected DH convention to URDF frame
-    T_corrected = simplify(T0_EEF * R_correction) 
+    #T_corrected = simplify(T0_EEF * R_correction) 
     # Extract end-effector position and orientation from request
     # px,py,pz = end-effector position
     # roll, pitch, yaw = end-effector orientation
@@ -245,8 +245,8 @@ def test_code(test_case):
     
     print ("\n T0_3:")
     print(T0_3)
-    print ("\n T_corrected:")
-    print(T_corrected)
+    print ("\n R3_6:")
+    print(R3_6)
 
     ## Find iota, kappa, zetta euler angles as done in lesson 2 part 8. ()[https://d17h27t6h515a5.cloudfront.net/topher/2017/May/591e1115_image-0/image-0.png]
 
