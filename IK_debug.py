@@ -10,18 +10,9 @@ From here you can adjust the joint angles to find thetas, use the gripper to ext
 to find the position of the wrist center. These newly generated test cases can be added to the test_cases dictionary.
 '''
 
-test_cases = {1:[[[2.16135,-1.42635,1.55109],
-                  [0.708611,0.186356,-0.157931,0.661967]],
-                  [1.89451,-1.44302,1.69366],
-                  [-0.65,0.45,-0.36,0.95,0.79,0.49]],
-              2:[[[-0.56754,0.93663,3.0038],
-                  [0.62073, 0.48318,0.38759,0.480629]],
-                  [-0.638,0.64198,2.9988],
-                  [-0.79,-0.11,-2.33,1.94,1.14,-3.68]],
-              3:[[[-1.3863,0.02074,0.90986],
-                  [0.01735,-0.2179,0.9025,0.371016]],
-                  [-1.1669,-0.17989,0.85137],
-                  [-2.99,-0.12,0.94,4.06,1.29,-4.12]],
+test_cases = {1:[[[2.16135,-1.42635,1.55109], [0.708611,0.186356,-0.157931,0.661967]], [1.89451,-1.44302,1.69366], [-0.65,0.45,-0.36,0.95,0.79,0.49]],
+              2:[[[-0.56754,0.93663,3.0038], [0.62073, 0.48318,0.38759,0.480629]], [-0.638,0.64198,2.9988], [-0.79,-0.11,-2.33,1.94,1.14,-3.68]],
+              3:[[[-1.3863,0.02074,0.90986], [0.01735,-0.2179,0.9025,0.371016]], [-1.1669,-0.17989,0.85137], [-2.99,-0.12,0.94,4.06,1.29,-4.12]],
               4:[],
               5:[]}
 
@@ -116,8 +107,8 @@ def test_code(test_case):
     R_correction_convention = R_z_DH_URDF * R_y_DH_URDF
                 
     ## 90 degree rotation about the y-axis
-    R_yaxis = Rot_y.subs(p, -pi/2).row_join(Matrix([[0],[0],[0]])).col_join(Matrix([[0,0,0,1]]))
-    R_zaxis = Rot_z.subs(p, pi).row_join(Matrix([[0],[0],[0]])).col_join(Matrix([[0,0,0,1]]))
+    R_yaxis = R_y_DH_URDF.row_join(Matrix([[0],[0],[0]])).col_join(Matrix([[0,0,0,1]]))
+    R_zaxis = R_z_DH_URDF.row_join(Matrix([[0],[0],[0]])).col_join(Matrix([[0,0,0,1]]))
     
     R_correction = R_zaxis * R_yaxis
     
@@ -144,6 +135,7 @@ def test_code(test_case):
     ## Corrected DH convention to URDF frame
     T_corrected = simplify(T0_EEF * R_correction) 
     # Extract end-effector position and orientation from request
+
     # px,py,pz = end-effector position
     # roll, pitch, yaw = end-effector orientation
     px = req.poses[x].position.x
@@ -173,8 +165,7 @@ def test_code(test_case):
     R_ypr_adjusted = R_ypr_adjusted.subs({'r': roll, 'p': pitch, 'y': yaw})
     
     ## by the definition in the lecture //!()[https://d17h27t6h515a5.cloudfront.net/topher/2017/May/592d74d1_equations/equations.png]
-    wrist_centre = eef_position - R_ypr.subs({'r' : roll, 'p' : pitch,  'y': yaw}) * eef_adjustment
-    
+    wrist_centre = eef_position -  R_ypr.subs({'r' : roll, 'p' : pitch,  'y': yaw}) * eef_adjustment
     #calculating theta1 from atan2(y_c, x_c)
     theta1 = atan2(wrist_centre[1,0], wrist_centre[0,0])
 
@@ -231,7 +222,7 @@ def test_code(test_case):
     R0_3 = R0_3.evalf(subs={quaternion1: theta1, quaternion2: theta2, quaternion3: theta3})
 
     ## the inverse matrix cancel the first three rotations
-    R3_6 = R0_3.inv("LU") * R_ypr_adjusted
+    R3_6 = R0_3.inv() * R_ypr_adjusted
     
     print ("\n T0_3:")
     print(T0_3)
@@ -239,13 +230,26 @@ def test_code(test_case):
     print(R3_6)
 
     ## Find iota, kappa, zetta euler angles as done in lesson 2 part 8. ()[https://d17h27t6h515a5.cloudfront.net/topher/2017/May/591e1115_image-0/image-0.png]
+    syp = sqrt(R3_6[1, 2]*R3_6[1, 2] +R3_6[1, 0]*R3_6[1, 0])
+
+    if syp > 0.000001:
+        theta6_p = atan2( R3_6[1, 2],  R3_6[1, 0])
+        theta5_p = atan2( syp,       R3_6[1, 1])
+        theta4_p = atan2( R3_6[2, 1], -R3_6[0, 1])
+    else:
+        theta6_p = atan2(-R3_6[2, 0],  R3_6[2, 2])
+        theta5_p = atan2( syp,       R3_6[1, 1])
+        theta4_p = 0.0
+
+
+    syn = -sqrt(R3_6[1, 2]*R3_6[1, 2] +R3_6[1, 0]*R3_6[1, 0])
+
+    theta6, theta5, theta4 = theta6_p, theta5_p, theta4_p
 
     ## euler_from_matrix assuming a yzy rotation (j4 : y, j5: z, j6: y)
-    iota, kappa, zetta = tf.transformations.euler_from_matrix(R3_6.tolist(), 'ryzy')
-    theta4 = iota
-    theta5 = kappa
-    theta6 = zetta
-
+    #theta4, theta5, theta6 = tf.transformations.euler_from_matrix(R3_6.tolist(), 'ryzy')
+    print ("\n Test case: ")
+    print (test_case_number)
     print ("\n theta1, theta2, theta3 ,theta4, theta5, theta6:")
     print (theta1, theta2, theta3 ,theta4, theta5, theta6)
     ## 

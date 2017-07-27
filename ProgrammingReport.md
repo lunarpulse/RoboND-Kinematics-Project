@@ -171,15 +171,24 @@ R0_3 = R0_3.evalf(subs={quaternion1: theta1, quaternion2: theta2, quaternion3: t
 
 ## the inverse matrix cancel the first three rotations
 R3_6 = R0_3.inv() * R_ypr_adjusted
-
-#R3_6 = Matrix([[(sin(quaternion1)*sin(quaternion3) + sin(quaternion2)*cos(quaternion1)*cos(quaternion3))*sin(quaternion2 + quaternion3)*cos(quaternion1) + (sin(quaternion1)*sin(quaternion2)*cos(quaternion3) - sin(quaternion3)*cos(quaternion1))*sin(quaternion1)*sin(quaternion2 + quaternion3) + cos(quaternion2)*cos(quaternion3)*cos(quaternion2 + quaternion3), sin(quaternion1)**2*sin(quaternion2 + quaternion3)*cos(quaternion2) - sin(quaternion2)*cos(quaternion2 + quaternion3) + sin(quaternion2 + quaternion3)*cos(quaternion1)**2*cos(quaternion2), (-sin(quaternion1)*cos(quaternion3) + sin(quaternion2)*sin(quaternion3)*cos(quaternion1))*sin(quaternion2 + quaternion3)*cos(quaternion1) + (sin(quaternion1)*sin(quaternion2)*sin(quaternion3) + cos(quaternion1)*cos(quaternion3))*sin(quaternion1)*sin(quaternion2 + quaternion3) + sin(quaternion3)*cos(quaternion2)*cos(quaternion2 + quaternion3)], [(sin(quaternion1)*sin(quaternion3) + sin(quaternion2)*cos(quaternion1)*cos(quaternion3))*cos(quaternion1)*cos(quaternion2 + quaternion3) + (sin(quaternion1)*sin(quaternion2)*cos(quaternion3) - sin(quaternion3)*cos(quaternion1))*sin(quaternion1)*cos(quaternion2 + quaternion3) - sin(quaternion2 + quaternion3)*cos(quaternion2)*cos(quaternion3), sin(quaternion1)**2*cos(quaternion2)*cos(quaternion2 + quaternion3) + sin(quaternion2)*sin(quaternion2 + quaternion3) + cos(quaternion1)**2*cos(quaternion2)*cos(quaternion2 + quaternion3), (-sin(quaternion1)*cos(quaternion3) + sin(quaternion2)*sin(quaternion3)*cos(quaternion1))*cos(quaternion1)*cos(quaternion2 + quaternion3) + (sin(quaternion1)*sin(quaternion2)*sin(quaternion3) + cos(quaternion1)*cos(quaternion3))*sin(quaternion1)*cos(quaternion2 + quaternion3) - sin(quaternion3)*sin(quaternion2 + quaternion3)*cos(quaternion2)], [-(sin(quaternion1)*sin(quaternion3) + sin(quaternion2)*cos(quaternion1)*cos(quaternion3))*sin(quaternion1) + (sin(quaternion1)*sin(quaternion2)*cos(quaternion3) - sin(quaternion3)*cos(quaternion1))*cos(quaternion1), 0, -(-sin(quaternion1)*cos(quaternion3) + sin(quaternion2)*sin(quaternion3)*cos(quaternion1))*sin(quaternion1) + (sin(quaternion1)*sin(quaternion2)*sin(quaternion3) + cos(quaternion1)*cos(quaternion3))*cos(quaternion1)]])
 ```
  
 R3_6 contains angle values for three joints, however, this is yzy rotation, due tot he orientation of revolute joints, joint 4, 5, 6. Therefore, this angles must be found in Ryzy, which is different from the [lecture note](https://d17h27t6h515a5.cloudfront.net/topher/2017/May/591e1115_image-0/image-0.png) finding Rxyz. Instead of implmenting own code for this calucation, tf package has a helper function finds the euler angles from a matrix.
 ```python
 ## euler_from_matrix assuming a yzy rotation (j4 : y, j5: z, j6: y)
-iota, kappa, zetta = tf.transformations.euler_from_matrix(R3_6.tolist(), "ryzy")
+theta4, theta5, theta6 = tf.transformations.euler_from_matrix(R3_6.tolist(), "ryzy")
+
+# or using this 
+
+#Ryzy=  Matrix([[-sin(q2)**2 + cos(q2)**2*cos(q3), -sin(q3)*cos(q2),  sin(q2)*cos(q2)*cos(q3) + sin(q2)*cos(q2)],
+#               [sin(q3)*cos(q2),                               cos(q3),                        sin(q2)*sin(q3)],
+#               [-sin(q2)*cos(q2)*cos(q3) - sin(q2)*cos(q2), sin(q2)*sin(q3), -sin(q2)**2*cos(q3) + cos(q2)**2]])
+
+theta4 = acos(R3_6[1,1])
+theta5 = atan2(R3_6[1,2], R3_6[1,0]) # or -atan2( R3_6[0,1],R3_6[2,1])
+theta6 = acos(R3_6[1,1])
 ```
+
 
 ## Project Implementation
 

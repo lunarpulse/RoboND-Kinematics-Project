@@ -79,10 +79,10 @@ def handle_calculate_IK(req):
         R_correction_convention = R_z_DH_URDF * R_y_DH_URDF
                     
         ## 90 degree rotation about the y-axis
-        R_yaxis = Rot_y.subs(p, -pi/2).row_join(Matrix([[0],[0],[0]])).col_join(Matrix([[0,0,0,1]]))
-        R_zaxis = Rot_z.subs(p, pi).row_join(Matrix([[0],[0],[0]])).col_join(Matrix([[0,0,0,1]]))
+        #R_yaxis = Rot_y.subs(p, -pi/2).row_join(Matrix([[0], [0], [0]])).col_join(Matrix([[0, 0, 0, 1]]))
+        #R_zaxis = Rot_z.subs(p, pi).row_join(Matrix([[0], [0], [0]])).col_join(Matrix([[0, 0, 0, 1]]))
         
-        R_correction = R_zaxis * R_yaxis
+        #R_correction = R_zaxis * R_yaxis
         
         # Create individual transformation matrices !(relative translation and orientation of link i-1 to link i)[https://d17h27t6h515a5.cloudfront.net/topher/2017/May/592d6644_dh-transform-matrix/dh-transform-matrix.png]
 
@@ -104,7 +104,7 @@ def handle_calculate_IK(req):
 
         ## Corrected DH convention to URDF frame
         #T_corrected = simplify(T0_EEF * R_correction) 
-        
+        prev_recorded = false
         # Initialize service response
         joint_trajectory_list = []
         for x in xrange(0, len(req.poses)):
@@ -213,11 +213,43 @@ def handle_calculate_IK(req):
             ## Find iota, kappa, zetta euler angles as done in lesson 2 part 8. ()[https://d17h27t6h515a5.cloudfront.net/topher/2017/May/591e1115_image-0/image-0.png]
 
             ## euler_from_matrix assuming a yzy rotation (j4 : y, j5: z, j6: y)
-            iota, kappa, zetta = tf.transformations.euler_from_matrix(R3_6.tolist(), 'ryzy')
-            theta4 = iota
-            theta5 = kappa
-            theta6 = zetta
+            #theta4, theta5, theta6 = tf.transformations.euler_from_matrix(R3_6.tolist(), 'ryzy')
 
+            syp = sqrt(R3_6[1, 2]*R3_6[1, 2] +R3_6[1, 0]*R3_6[1, 0])
+
+            if syp > 0.000000001:
+                theta6_p = atan2( R3_6[1, 2],  R3_6[1, 0])
+                theta5_p = atan2( syp,       R3_6[1, 1])
+                theta4_p = atan2( R3_6[2, 1], -R3_6[0, 1])
+            else:
+                theta6_p = atan2(-R3_6[2, 0],  R3_6[2, 2])
+                theta5_p = atan2( syp,       R3_6[1, 1])
+                theta4_p = 0.0
+        
+
+            syn = -sqrt(R3_6[1, 2]*R3_6[1, 2] +R3_6[1, 0]*R3_6[1, 0])
+
+            if syn < -0.000000001:
+                theta6_n = atan2( R3_6[1, 2],  R3_6[1, 0])
+                theta5_n = atan2( syn,       R3_6[1, 1])
+                theta4_n = atan2( R3_6[2, 1], -R3_6[0, 1])
+            else:
+                theta6_n = atan2(-R3_6[2, 0],  R3_6[2, 2])
+                theta5_n = atan2( syn,       R3_6[1, 1])
+                theta4_n = 0.0
+            if (prev_recorded == true):
+                delta_n = abs(theta6_n-prev_theta6 )+  abs(theta5_n-prev_theta5 )+ abs(theta4_n-prev_theta4)
+                delta_p = abs(theta6_p-prev_theta6 )+  abs(theta5_p-prev_theta5 )+ abs(theta4_p-prev_theta4)
+
+                if (delta_n < delta_p):
+                    theta6, theta5, theta4 = theta6_n, theta5_n, theta4_n
+                else:
+                    theta6, theta5, theta4 = theta6_p, theta5_p, theta4_p
+            else:
+                theta6, theta5, theta4 = theta6_p, theta5_p, theta4_p
+                prev_recorded = true
+
+            prev_theta6, prev_theta5, prev_theta4 = theta6, theta5, theta4
             # Populate response for the IK request
             # In the next line replace theta1,theta2...,theta6 by your joint angle variables
             joint_trajectory_point.positions = [theta1, theta2, theta3, theta4, theta5, theta6]
@@ -230,8 +262,10 @@ def handle_calculate_IK(req):
 def IK_server():
     # initialize node and declare calculate_ik service
     rospy.init_node('IK_server')
+    prev_theta6, prev_theta5, prev_theta4 = 0,0,0
     s = rospy.Service('calculate_ik', CalculateIK, handle_calculate_IK)
     print "Ready to receive an IK request"
+
     rospy.spin()
 
 if __name__ == "__main__":
