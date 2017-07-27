@@ -98,24 +98,26 @@ def test_code(test_case):
     
     # Define Modified DH Transformation matrix
     ##  Correction of URDF vs. DH convention
-    R_y_DH_URDF = Matrix([[ cos(-pi/2), 0, sin(-pi/2)],
-                        [          0, 1,          0],
-                        [-sin(-pi/2), 0, cos(-pi/2)]])
+    r,p,y = symbols('r p y')
 
-    R_z_DH_URDF = Matrix([[cos(-pi/2), -sin(-pi/2), 0], 
-                            [sin(-pi/2),  cos(-pi/2), 0],
-                            [     0,       0,     1]])
-                            
+    Rot_x = Matrix([[1,         0,          0], 
+                    [0, cos(r), -sin(r)],
+                    [0, sin(r),  cos(r)]])
+
+    Rot_y = Matrix([[ cos(p), 0, sin(p)],
+                    [          0, 1,          0],
+                    [-sin(p), 0, cos(p)]])
+
+    Rot_z = Matrix([[cos(y), -sin(y), 0], 
+                    [sin(y),  cos(y), 0],
+                    [     0,       0,     1]])
+    R_y_DH_URDF = Rot_y.subs(p, -pi/2)
+    R_z_DH_URDF = Rot_z.subs(y, -pi/2)
+    R_correction_convention = R_z_DH_URDF * R_y_DH_URDF
+                
     ## 90 degree rotation about the y-axis
-    R_yaxis = Matrix([[ cos(-pi/2), 0, sin(-pi/2), 0],
-                [          0, 1,          0, 0],
-                [-sin(-pi/2), 0, cos(-pi/2), 0],
-                [          0, 0,          0, 1]])
-    ## 180 degree rotation about the z-axis
-    R_zaxis = Matrix([[cos(pi), -sin(pi), 0, 0],
-                [sin(pi),  cos(pi), 0, 0],
-                [      0,        0, 1, 0],
-                [      0,        0, 0, 1]])
+    R_yaxis = Rot_y.subs(p, -pi/2).row_join(Matrix([[0],[0],[0]])).col_join(Matrix([[0,0,0,1]]))
+    R_zaxis = Rot_z.subs(p, pi).row_join(Matrix([[0],[0],[0]])).col_join(Matrix([[0,0,0,1]]))
     
     R_correction = R_zaxis * R_yaxis
     
@@ -124,23 +126,23 @@ def test_code(test_case):
     T0_1 = createTMatrix(alpha0, a0, d1, quaternion1 ).subs(s)
     T1_2 = createTMatrix(alpha1, a1, d2, quaternion2 ).subs(s)
     T2_3 = createTMatrix(alpha2, a2, d3, quaternion3 ).subs(s)
-    #T3_4 = createTMatrix(alpha3, a3, d4, quaternion4 ).subs(s)
-    #T4_5 = createTMatrix(alpha4, a4, d5, quaternion5 ).subs(s)
-    #T5_6 = createTMatrix(alpha5, a5, d6, quaternion6 ).subs(s)
-    #T6_EEF = createTMatrix(alpha6, a6, d7, quaternion7 ).subs(s)
+    T3_4 = createTMatrix(alpha3, a3, d4, quaternion4 ).subs(s)
+    T4_5 = createTMatrix(alpha4, a4, d5, quaternion5 ).subs(s)
+    T5_6 = createTMatrix(alpha5, a5, d6, quaternion6 ).subs(s)
+    T6_EEF = createTMatrix(alpha6, a6, d7, quaternion7 ).subs(s)
 
     T0_2 = T0_1 * T1_2
     T0_3 = simplify(T0_2 * T2_3)
-    #T0_4 = T0_3 * T3_4
-    #T0_5 = T0_4 * T4_5
-    #T0_6 = T0_5 * T5_6 
+    T0_4 = T0_3 * T3_4
+    T0_5 = T0_4 * T4_5
+    T0_6 = T0_5 * T5_6 
     #simplify only T0_EFF and T0_3 as others are intermediate calculations no need of simplification in optimistaion phase
-    #T0_EEF = T0_6 * T6_EEF
+    T0_EEF = T0_6 * T6_EEF
 
 
 
     ## Corrected DH convention to URDF frame
-    #T_corrected = simplify(T0_EEF * R_correction) 
+    T_corrected = simplify(T0_EEF * R_correction) 
     # Extract end-effector position and orientation from request
     # px,py,pz = end-effector position
     # roll, pitch, yaw = end-effector orientation
@@ -163,28 +165,18 @@ def test_code(test_case):
                                 [0],
                                 [0]]) 
 
-    R_x = Matrix([[1,         0,          0], 
-                    [0, cos(roll), -sin(roll)],
-                    [0, sin(roll),  cos(roll)]])
-
-    R_y = Matrix([[ cos(pitch), 0, sin(pitch)],
-                    [          0, 1,          0],
-                    [-sin(pitch), 0, cos(pitch)]])
-
-    R_z = Matrix([[cos(yaw), -sin(yaw), 0], 
-                    [sin(yaw),  cos(yaw), 0],
-                    [     0,       0,     1]])
-
-    R_ypr = R_z * R_y * R_x
+    R_ypr = Rot_z * Rot_y * Rot_x
     
     ## Correct orientation between DH convention and URDF 
 
-    R_ypr_adjusted = R_ypr* R_z_DH_URDF * R_y_DH_URDF
-
+    R_ypr_adjusted = R_ypr * R_correction_convention
+    R_ypr_adjusted = R_ypr_adjusted.subs({'r': roll, 'p': pitch, 'y': yaw})
+    
     ## by the definition in the lecture //!()[https://d17h27t6h515a5.cloudfront.net/topher/2017/May/592d74d1_equations/equations.png]
-    w_c = eef_position - R_ypr * eef_adjustment
+    wrist_centre = eef_position - R_ypr.subs({'r' : roll, 'p' : pitch,  'y': yaw}) * eef_adjustment
+    
     #calculating theta1 from atan2(y_c, x_c)
-    theta1 = atan2(w_c[1,0], w_c[0,0])
+    theta1 = atan2(wrist_centre[1,0], wrist_centre[0,0])
 
     ##distance_j2_j3 = a2 #1.25m default
     distance_j2_j3 = a2.subs(s)
@@ -210,9 +202,9 @@ def test_code(test_case):
 
     j2_z = d1.subs(s)
 
-    j5_x = w_c[0,0]
-    j5_y = w_c[1,0]
-    j5_z = w_c[2,0]
+    j5_x = wrist_centre[0,0]
+    j5_y = wrist_centre[1,0]
+    j5_z = wrist_centre[2,0]
     ## diff z between joint 2 and 5
     j5_z_j2_z = j5_z - j2_z
 
@@ -234,14 +226,12 @@ def test_code(test_case):
 
     ## Find R3_6 from orientation data
 
-    ## R_rpy = R_ypr 
-    R0_3 = Matrix([[T0_3[0,0], T0_3[0,1], T0_3[0,2]],
-                    [T0_3[1,0], T0_3[1,1], T0_3[1,2]],
-                    [T0_3[2,0], T0_3[2,1], T0_3[2,2]]])
+    ## R_rpy = R_ypr
+    R0_3 = T0_3[0:3,0:3]
     R0_3 = R0_3.evalf(subs={quaternion1: theta1, quaternion2: theta2, quaternion3: theta3})
 
     ## the inverse matrix cancel the first three rotations
-    R3_6 = R0_3.T * R_ypr_adjusted
+    R3_6 = R0_3.inv("LU") * R_ypr_adjusted
     
     print ("\n T0_3:")
     print(T0_3)
@@ -266,13 +256,13 @@ def test_code(test_case):
     ## as the input and output the position of your end effector as your_ee = [x,y,z]
 
     ## (OPTIONAL) YOUR CODE HERE!
-
+    end_effector = T_corrected.evalf(subs={quaternion1: theta1, quaternion2: theta2, quaternion3: theta3, quaternion4: theta4, quaternion5: theta5, quaternion6: theta6 })
     ## End your code input for forward kinematics here!
     ########################################################################################
 
     ## For error analysis please set the following variables of your WC location and EE location in the format of [x,y,z]
-    your_wc = [1,1,1] # <--- Load your calculated WC values in this array
-    your_ee = [1,1,1] # <--- Load your calculated end effector value from your forward kinematics
+    your_wc = [wrist_centre[0],wrist_centre[1],wrist_centre[2]] # <--- Load your calculated WC values in this array
+    your_ee = [end_effector[0,3],end_effector[1,3],end_effector[2,3]] # <--- Load your calculated end effector value from your forward kinematics
     ########################################################################################
 
     ## Error analysis
@@ -323,6 +313,6 @@ def test_code(test_case):
 
 if __name__ == "__main__":
     # Change test case number for different scenarios
-    test_case_number = 1
+    test_case_number = 3
 
     test_code(test_cases[test_case_number])

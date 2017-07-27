@@ -18,7 +18,7 @@ from geometry_msgs.msg import Pose
 from mpmath import *
 from sympy import *
 
-def createTMatrix(alpha, a, d, q ):
+def createTMatrix (alpha, a, d, q):
 
     T = Matrix([[           cos(q),           -sin(q),           0,             a],
 
@@ -61,24 +61,26 @@ def handle_calculate_IK(req):
         
         # Define Modified DH Transformation matrix
         ##  Correction of URDF vs. DH convention
-        R_y_DH_URDF = Matrix([[ cos(-pi/2), 0, sin(-pi/2)],
-                            [          0, 1,          0],
-                            [-sin(-pi/2), 0, cos(-pi/2)]])
+        r,p,y = symbols('r p y')
 
-        R_z_DH_URDF = Matrix([[cos(-pi/2), -sin(-pi/2), 0], 
-                            [sin(-pi/2),  cos(-pi/2), 0],
-                            [     0,       0,     1]])
-                            
+        Rot_x = Matrix([[1,         0,          0], 
+                        [0, cos(r), -sin(r)],
+                        [0, sin(r),  cos(r)]])
+
+        Rot_y = Matrix([[ cos(p), 0, sin(p)],
+                        [          0, 1,          0],
+                        [-sin(p), 0, cos(p)]])
+
+        Rot_z = Matrix([[cos(y), -sin(y), 0], 
+                        [sin(y),  cos(y), 0],
+                        [     0,       0,     1]])
+        R_y_DH_URDF = Rot_y.subs(p, -pi/2)
+        R_z_DH_URDF = Rot_z.subs(y, -pi/2)
+        R_correction_convention = R_z_DH_URDF * R_y_DH_URDF
+                    
         ## 90 degree rotation about the y-axis
-        R_yaxis = Matrix([[ cos(-pi/2), 0, sin(-pi/2), 0],
-                    [          0, 1,          0, 0],
-                    [-sin(-pi/2), 0, cos(-pi/2), 0],
-                    [          0, 0,          0, 1]])
-        ## 180 degree rotation about the z-axis
-        R_zaxis = Matrix([[cos(pi), -sin(pi), 0, 0],
-                    [sin(pi),  cos(pi), 0, 0],
-                    [      0,        0, 1, 0],
-                    [      0,        0, 0, 1]])
+        R_yaxis = Rot_y.subs(p, -pi/2).row_join(Matrix([[0],[0],[0]])).col_join(Matrix([[0,0,0,1]]))
+        R_zaxis = Rot_z.subs(p, pi).row_join(Matrix([[0],[0],[0]])).col_join(Matrix([[0,0,0,1]]))
         
         R_correction = R_zaxis * R_yaxis
         
@@ -141,27 +143,18 @@ def handle_calculate_IK(req):
                                      [0],
                                      [0]]) 
 
-            R_x = Matrix([[1,         0,          0], 
-                          [0, cos(roll), -sin(roll)],
-                          [0, sin(roll),  cos(roll)]])
-
-            R_y = Matrix([[ cos(pitch), 0, sin(pitch)],
-                          [          0, 1,          0],
-                          [-sin(pitch), 0, cos(pitch)]])
-
-            R_z = Matrix([[cos(yaw), -sin(yaw), 0], 
-                          [sin(yaw),  cos(yaw), 0],
-                          [     0,       0,     1]])
-
-            R_ypr = R_z * R_y * R_x
+            R_ypr = Rot_z * Rot_y * Rot_x
             
             ## Correct orientation between DH convention and URDF 
-            R_ypr_adjusted = R_ypr *R_z_DH_URDF * R_y_DH_URDF
 
+            R_ypr_adjusted = R_ypr * R_correction_convention
+            R_ypr_adjusted = R_ypr_adjusted.subs({'r': roll, 'p': pitch, 'y': yaw})
+            
             ## by the definition in the lecture //!()[https://d17h27t6h515a5.cloudfront.net/topher/2017/May/592d74d1_equations/equations.png]
-            w_c = eef_position - R_ypr * eef_adjustment
+            wrist_centre = eef_position - R_ypr.subs({'r' : roll, 'p' : pitch,  'y': yaw}) * eef_adjustment
+
             #calculating theta1 from atan2(y_c, x_c)
-            theta1 = atan2(w_c[1,0], w_c[0,0])
+            theta1 = atan2(wrist_centre[1,0], wrist_centre[0,0])
 
             ##distance_j2_j3 = a2 #1.25m default
             distance_j2_j3 = a2.subs(s)
@@ -187,9 +180,9 @@ def handle_calculate_IK(req):
 
             j2_z = d1.subs(s)
 
-            j5_x = w_c[0,0]
-            j5_y = w_c[1,0]
-            j5_z = w_c[2,0]
+            j5_x = wrist_centre[0,0]
+            j5_y = wrist_centre[1,0]
+            j5_z = wrist_centre[2,0]
             ## diff z between joint 2 and 5
             j5_z_j2_z = j5_z - j2_z
 
@@ -211,10 +204,7 @@ def handle_calculate_IK(req):
 		
             ## Find R3_6 from orientation data
 
-            ## R_rpy = R_ypr 
-            R0_3 = Matrix([[T0_3[0,0], T0_3[0,1], T0_3[0,2]],
-                           [T0_3[1,0], T0_3[1,1], T0_3[1,2]],
-                           [T0_3[2,0], T0_3[2,1], T0_3[2,2]]])
+            R0_3 = T0_3[0:3,0:3]
             R0_3 = R0_3.evalf(subs={quaternion1: theta1, quaternion2: theta2, quaternion3: theta3})
 
             ## the inverse matrix cancel the first three rotations
