@@ -104,7 +104,9 @@ def handle_calculate_IK(req):
 
         ## Corrected DH convention to URDF frame
         #T_corrected = simplify(T0_EEF * R_correction) 
+        prev_theta6, prev_theta5, prev_theta4 = 0,0,0
         prev_recorded = false
+
         # Initialize service response
         joint_trajectory_list = []
         for x in xrange(0, len(req.poses)):
@@ -215,28 +217,23 @@ def handle_calculate_IK(req):
             ## euler_from_matrix assuming a yzy rotation (j4 : y, j5: z, j6: y)
             #theta4, theta5, theta6 = tf.transformations.euler_from_matrix(R3_6.tolist(), 'ryzy')
 
-            syp = sqrt(R3_6[1, 2]*R3_6[1, 2] +R3_6[1, 0]*R3_6[1, 0])
+            sy = sqrt(R3_6[1, 2]*R3_6[1, 2] +R3_6[1, 0]*R3_6[1, 0])
 
-            if syp > 0.000000001:
+            if sy > 0.000000001:
                 theta6_p = atan2( R3_6[1, 2],  R3_6[1, 0])
-                theta5_p = atan2( syp,       R3_6[1, 1])
+                theta5_p = atan2( sy,       R3_6[1, 1])
                 theta4_p = atan2( R3_6[2, 1], -R3_6[0, 1])
+
+                theta5_n = atan2( -sy,       R3_6[1, 1])
             else:
                 theta6_p = atan2(-R3_6[2, 0],  R3_6[2, 2])
-                theta5_p = atan2( syp,       R3_6[1, 1])
+                theta5_p = atan2( sy,       R3_6[1, 1])
                 theta4_p = 0.0
-        
 
-            syn = -sqrt(R3_6[1, 2]*R3_6[1, 2] +R3_6[1, 0]*R3_6[1, 0])
+                theta5_n = atan2( -sy,       R3_6[1, 1])
 
-            if syn < -0.000000001:
-                theta6_n = atan2( R3_6[1, 2],  R3_6[1, 0])
-                theta5_n = atan2( syn,       R3_6[1, 1])
-                theta4_n = atan2( R3_6[2, 1], -R3_6[0, 1])
-            else:
-                theta6_n = atan2(-R3_6[2, 0],  R3_6[2, 2])
-                theta5_n = atan2( syn,       R3_6[1, 1])
-                theta4_n = 0.0
+            theta6_n, theta4_n = theta6_p, theta4_p
+            
             if (prev_recorded == true):
                 delta_n = abs(theta6_n-prev_theta6 )+  abs(theta5_n-prev_theta5 )+ abs(theta4_n-prev_theta4)
                 delta_p = abs(theta6_p-prev_theta6 )+  abs(theta5_p-prev_theta5 )+ abs(theta4_p-prev_theta4)
@@ -245,11 +242,21 @@ def handle_calculate_IK(req):
                     theta6, theta5, theta4 = theta6_n, theta5_n, theta4_n
                 else:
                     theta6, theta5, theta4 = theta6_p, theta5_p, theta4_p
+
+                #if ((theta6 - prev_theta6)> pi):
+                #    theta6 = prev_theta6 - (2* pi - theta6 + prev_theta6)
+
+                #if ((theta5 - prev_theta5)> pi):
+                #   theta5 = prev_theta5 - (2* pi - theta5 + prev_theta5)
+                    
+                #if ((theta4 - prev_theta4)> pi):
+                #    theta4 = prev_theta4 - (2* pi - theta4 + prev_theta4)
+
             else:
                 theta6, theta5, theta4 = theta6_p, theta5_p, theta4_p
                 prev_recorded = true
 
-            prev_theta6, prev_theta5, prev_theta4 = theta6, theta5, theta4
+            prev_theta6, prev_theta5, prev_theta4 = theta4, theta5, theta4
             # Populate response for the IK request
             # In the next line replace theta1,theta2...,theta6 by your joint angle variables
             joint_trajectory_point.positions = [theta1, theta2, theta3, theta4, theta5, theta6]
@@ -262,7 +269,6 @@ def handle_calculate_IK(req):
 def IK_server():
     # initialize node and declare calculate_ik service
     rospy.init_node('IK_server')
-    prev_theta6, prev_theta5, prev_theta4 = 0,0,0
     s = rospy.Service('calculate_ik', CalculateIK, handle_calculate_IK)
     print "Ready to receive an IK request"
 

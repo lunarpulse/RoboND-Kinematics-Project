@@ -23,6 +23,8 @@
 [image4]: ./misc_images/fasterCalculation_resized.png
 [image5]: ./misc_images/fasterDebug.png
 [image6]: ./misc_images/which-programs-are-fastest-middle.png
+[Triangles]: ./misc_images/6dofkukakr210.png
+
 ## [Rubric](https://review.udacity.com/#!/rubrics/972/view) Points
 ### Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
 
@@ -73,9 +75,23 @@ def createTMatrix(alpha, a, d, quaternion ):
                 [                0,                 0,           0,             1]])
 
 return(T)
-```
-With the general form above, a transformation matrix for every joint were populated. The tranformation matrix from the base link to the end effector was made with extrinsic multiplication of all the trasnfomration matrix between the components. The below is the simplified transformation matrix from base link (0) to end effector with DH parameter applied. It is a complex and lengthy matrix, which requires heavy computation to process later in the loop. 
 
+TO_1 = Matrix([[cos(quaternion1), -sin(quaternion1), 0, 0], [sin(quaternion1), cos(quaternion1), 0, 0], [0, 0, 1, 0.750000000000000], [0, 0, 0, 1]])
+
+ T1_2 = Matrix([[sin(quaternion2), cos(quaternion2), 0, 0.350000000000000], [0, 0, 1, 0], [cos(quaternion2), -sin(quaternion2), 0, 0], [0, 0, 0, 1]])
+
+ T2_3 = Matrix([[cos(quaternion3), -sin(quaternion3), 0, 1.25000000000000], [sin(quaternion3), cos(quaternion3), 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+
+ T3_4 = Matrix([[cos(quaternion4), -sin(quaternion4), 0, -0.0540000000000000], [0, 0, 1, 1.50000000000000], [-sin(quaternion4), -cos(quaternion4), 0, 0], [0, 0, 0, 1]])
+
+ T4_5 = Matrix([[cos(quaternion5), -sin(quaternion5), 0, 0], [0, 0, -1, 0], [sin(quaternion5), cos(quaternion5), 0, 0], [0, 0, 0, 1]])
+
+ T5_6 = Matrix([[cos(quaternion6), -sin(quaternion6), 0, 0], [0, 0, 1, 0], [-sin(quaternion6), -cos(quaternion6), 0, 0], [0, 0, 0, 1]])
+
+ T6_EEF = Matrix([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0.303000000000000], [0, 0, 0, 1]])
+
+```
+With the general form above, a transformation matrix for every joint were populated. The tranformation matrix from the base link to the end effector was made with extrinsic multiplication of all the trasnfomration matrix between the components. The below is the simplified transformation matrix from base link (0) to end effector with DH parameter applied. It is a complex and lengthy matrix, which requires heavy computation to process later in the loop. Only up to *T0_3* is used in the code. The below code shows the simplified form of transformation matrix(*T0_EEF*) from the link0 to the endeffector. The actual code generating all these matrix is in [sympy test jupyter notebook](./kuka_arm/scripts/sympy_note.ipynb).
 
 ```python
 T0_EEF = Matrix([
@@ -84,7 +100,7 @@ T0_EEF = Matrix([
 [                                                                                                                              -(sin(quaternion5)*sin(quaternion2 + quaternion3) - cos(quaternion4)*cos(quaternion5)*cos(quaternion2 + quaternion3))*cos(quaternion6) - sin(quaternion4)*sin(quaternion6)*cos(quaternion2 + quaternion3),                                                                                                                                 (sin(quaternion5)*sin(quaternion2 + quaternion3) - cos(quaternion4)*cos(quaternion5)*cos(quaternion2 + quaternion3))*sin(quaternion6) - sin(quaternion4)*cos(quaternion6)*cos(quaternion2 + quaternion3),                                                                         -sin(quaternion5)*cos(quaternion4)*cos(quaternion2 + quaternion3) - sin(quaternion2 + quaternion3)*cos(quaternion5),                                                                                                                              -0.303*sin(quaternion5)*cos(quaternion4)*cos(quaternion2 + quaternion3) - 0.303*sin(quaternion2 + quaternion3)*cos(quaternion5) - 1.5*sin(quaternion2 + quaternion3) + 1.25*cos(quaternion2) - 0.054*cos(quaternion2 + quaternion3) + 0.75],
 [                                                                                                                                                                                                                                                                                                                                      0,                                                                                                                                                                                                                                                                                                                                        0,                                                                                                                                                                                           0,                                                                                                                                                                                                                                                                                                                                                                       1]])
 ```
-As URDF and DH conventions have a difference in rotation axis of joints and the gripper, this discrepancy must be resolved by two correction matrix, one with 2 pi rotation around z axis and the other with - pi/2 rotation on y axis.
+As URDF and DH conventions have a difference in rotation axis of joints and the gripper, this discrepancy must be resolved by two correction matrix, one with 2 pi rotation around z axis and the other with - pi/2 rotation on y axis. This part is different from the lectures. From slack, others propose using this convention. It also varies the inverse orientation problem in this report too.
 
 ```python
 R_y_URDF_DH = Matrix([[ cos(-pi/2), 0, sin(-pi/2)],
@@ -102,8 +118,7 @@ T_corrected =T0_EEF * R_y_URDF_DH* R_z_URDF_DH
 ```
 
 These code above are from [sympy test jupyter notebook](./kuka_arm/scripts/sympy_note.ipynb)
-
-Although it is a requirement in rubric, T0_3 is only used in the inverse kinematics calculation.
+From the forward kinematics section, T0_3 is only used in the inverse kinematics calculation.
 ### 3. Decouple Inverse Kinematics problem into Inverse Position Kinematics and inverse Orientation Kinematics; doing so derive the equations to calculate all individual joint angles.
 
 The wrist centre is the important component which enables us to isolate the problems and solve the unknown angles of each joint. The problem laid in the domain of inverse position kinematics, once setting up the joint as URDF describes.
@@ -114,7 +129,7 @@ The theory behine this is from udacity lecture note 3.14 and 2.19.
 ![](https://d17h27t6h515a5.cloudfront.net/topher/2017/May/592d74d1_equations/equations.png)
 ![](https://d17h27t6h515a5.cloudfront.net/topher/2017/May/591e52e6_image-4/image-4.png)
 
-These two snipets were implemented.
+These two snipets were implemented. As the URDF to DH convention is different, the x axis was used to find the lx, ly, lz so the first element of matrix was chosen and also this determine the rotation mode to 'ryzy' for the theta 4,5,6.
 ```python
 eef_position = Matrix([[px],
                         [py],
@@ -147,12 +162,13 @@ w_c = eef_position - R_ypr * eef_adjustment
 The distance from j5 to end effector (gripper) is the tsum of d7 and d6. the end effector was assumed to point x axis by applying orthonormal vectors with *eef_adjustment* to the homogeneous transformation formed with yaw, pitch, roll values substituted from the trajectory values from the *joint_trajectory_list*.
 
 Inverse kinematics was solved with two similar trigometry calculations for the triangles invloving the joint 3, 4, 5 by using the wrist centre which is located on joint 5.
-
 Theta 1, angle for joint 1 was found by solving atan2 function with y component of wrist centre and x of wrist centre, which was simply projected from the 3d point w_c.
+#### Inverse Position Kinematics
+![Triangles][Triangles]
 
-Theta 2, and Theta 3 was solved by using the example from **Term 3. 2. 19 Inverse Kinematics Example**.
+Theta 2, and Theta 3 was solved by using the example from **Term 3. 2. 19 Inverse Kinematics Example**. Theta 2 are part of the right angle with betta and eta. Betta and eta can be found reversing cosine law of the triangle with joint 3, 5, 2 and tangent of x and y coordinate of joint 5, respectivly. Theta 3 is the angle from the Z axis of joint 3 to the Z axis of joint2, which is the part of 180 degree combined with gamma and delta. two angles gamma and delta can be found by the cosine law of the triangle with joint 3, 5, 2 and the asine of a3 and distance from joint 3 to 5, respectively.
 
-
+#### Inverse Orientation Kinematics
 The rest of theta 4,5,6 can be found from inverse orientation kinematics using known theta 1, 2, 3. These Euler angles can be found from the rotation matrix from joint 3 to 6.
 
 ![](https://d17h27t6h515a5.cloudfront.net/topher/2017/May/591e52f0_image-5/image-5.png)
@@ -172,8 +188,8 @@ R0_3 = R0_3.evalf(subs={quaternion1: theta1, quaternion2: theta2, quaternion3: t
 ## the inverse matrix cancel the first three rotations
 R3_6 = R0_3.inv() * R_ypr_adjusted
 ```
- 
-R3_6 contains angle values for three joints, however, this is yzy rotation, due tot he orientation of revolute joints, joint 4, 5, 6. Therefore, this angles must be found in Ryzy, which is different from the [lecture note](https://d17h27t6h515a5.cloudfront.net/topher/2017/May/591e1115_image-0/image-0.png) finding Rxyz. Instead of implmenting own code for this calucation, tf package has a helper function finds the euler angles from a matrix.
+
+`R3_6` contains angle values for three joints, joint 4, 5, 6, whose axis are in yzy configuration due to the orientation of revolute joints, joint 4, 5, 6. Therefore, this angles must be found in Ryzy, which is different from the [lecture note](https://d17h27t6h515a5.cloudfront.net/topher/2017/May/591e1115_image-0/image-0.png) which is finding Rxyz. Derivation was hard, therefore, used the routines of tf package where provides correct angle during the debugging with `IK_debug.py`. Tf used atan of triangles conditionally. However, it sometimes provided wrong angle, angle + pi, which is another solution for the atan function.
 ```python
 ## euler_from_matrix assuming a yzy rotation (j4 : y, j5: z, j6: y)
 theta4, theta5, theta6 = tf.transformations.euler_from_matrix(R3_6.tolist(), "ryzy")
@@ -184,11 +200,44 @@ theta4, theta5, theta6 = tf.transformations.euler_from_matrix(R3_6.tolist(), "ry
 #               [sin(q3)*cos(q2),                               cos(q3),                        sin(q2)*sin(q3)],
 #               [-sin(q2)*cos(q2)*cos(q3) - sin(q2)*cos(q2), sin(q2)*sin(q3), -sin(q2)**2*cos(q3) + cos(q2)**2]])
 
-theta4 = acos(R3_6[1,1])
-theta5 = atan2(R3_6[1,2], R3_6[1,0]) # or -atan2( R3_6[0,1],R3_6[2,1])
-theta6 = acos(R3_6[1,1])
-```
+sy = sqrt(R3_6[1, 2]*R3_6[1, 2] +R3_6[1, 0]*R3_6[1, 0])
 
+if sy > 0.000000001:
+theta6_p = atan2( R3_6[1, 2],  R3_6[1, 0])
+theta5_p = atan2( sy,       R3_6[1, 1])
+theta4_p = atan2( R3_6[2, 1], -R3_6[0, 1])
+
+theta5_n = atan2( -sy,       R3_6[1, 1])
+else:
+theta6_p = atan2(-R3_6[2, 0],  R3_6[2, 2])
+theta5_p = atan2( sy,       R3_6[1, 1])
+theta4_p = 0.0
+
+theta5_n = atan2( -sy,       R3_6[1, 1])
+
+theta6_n, theta4_n = theta6_p, theta4_p
+```
+THe bottom half fo the code above code snippet is from the transfomratil.euler_from_matrix in tf package. As this function outputs only one angle out of possible solutions, the rotbot arm did not have choice to perform better theta angles for theta 4,5,6. By implementing inline code and choose the smallerest angle reduced the rotation of sphecial wrist.
+
+```python
+delta_n = abs(theta6_n-prev_theta6 )+  abs(theta5_n-prev_theta5 )+ abs(theta4_n-prev_theta4)
+delta_p = abs(theta6_p-prev_theta6 )+  abs(theta5_p-prev_theta5 )+ abs(theta4_p-prev_theta4)
+
+if (delta_n < delta_p):
+        theta6, theta5, theta4 = theta6_n, theta5_n, theta4_n
+else:
+        theta6, theta5, theta4 = theta6_p, theta5_p, theta4_p
+
+if ((theta6 - prev_theta6)> pi):
+    theta6 = prev_theta6 - (2* pi - theta6 + prev_theta6)
+
+if ((theta5 - prev_theta5)> pi):
+   theta5 = prev_theta5 - (2* pi - theta5 + prev_theta5)
+        
+if ((theta4 - prev_theta4)> pi):
+    theta4 = prev_theta4 - (2* pi - theta4 + prev_theta4)
+```
+The code above is to filter the excessive rotation of the circular wrist. However, the lower part is still in experimental. The code supposed to filter the near 360 degree rotation by reversing the rotation and make it smaller. However, the code does not work especially near gimbal lock conditions.
 
 ## Project Implementation
 
@@ -199,6 +248,15 @@ Most code had been introduced through aforementioned sections.
 The debug information from the result after excuting IK_debug.py, given by kyslef, shows the low error rates for the theta values and the solving time under 15 seconds.
 
 ![IK_debug][image1]
+
+Debugging information shows that there are some errors especially in the second debug test case. The 3 shows 2 pi rotation errors in the theta 4 adnd theta 6. However, the end effector position is right in test case 1, 3. There are some angle selection problem in th code. However, the overall accuracy of the robot arm was good enough to stack 6 cans in a column.
+
+  Debug | time   | Overall wrist Error | Theta1 error | Theta2 error | Theta3 error | Theta4 error | Theta5 error | Theta6 error | Overall End effector error |
+--- | ---       | ---   | ---           | ---       | ---      | ---       | ---       | ---           | ---                   |
+1 | 11.7247 | 0.00000548 |  0.00093770|  0.00178633 |0.00206506|0.00172809 |0.00198404|0.00252923   |0.00000000   |
+3 | 12.5561 | 0.00006980 |  3.14309971|  0.27927962 |1.86833314|3.08639539 |0.06340277|6.13524929   |0.00000000   |
+3 | 10.9381 | 0.00000926 |  0.00136747|  0.00329800 |0.00339863|6.28213720 |0.00287049|6.28227458   |0.00000000   |
+
 
 The traces of the end effector seem to be very off sometimes and slows down the entire process. In addtion, this random plan disruption cannot be prevented as the inverse kinematics should follow the trajectories, even if these are not optimised or realistic.
 The planner provides some erroneous plans and the robot dances for a while.
@@ -222,6 +280,7 @@ The sympy library is good for showing the formula creation for a generalised for
 
 
 Excessive rotations of end effector was observed. I assume this is due to the multiple solutions for each theta angles, sinage duality from square root functions and also the nature of revolute joints. The improvement for this issue is investigated conditioning the IK solver to choose more realistic solution, preferring a shorter distance or angle amongst the solutions.
+
 
 
 
