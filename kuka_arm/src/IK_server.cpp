@@ -6,38 +6,28 @@
 
 kuka_arm::CalculateIK srv;
 
-bool  handle_calculate_IK(std::vector<geometry_msgs::Pose>& poses, std::vector<double>& response);
-
-int main(int argc, char **argv)
-{   
-    ros::init(argc, argv, "IK_server");
-    ros::NodeHandle nh;
-    //ros::ServiceClient client = nh.serviceClient<kuka_arm::CalculateIK>("calculate_ik");
-    ros::ServiceServer service = nh.advertiseService("calculate_ik", handle_calculate_IK);
-    //s = ros.Service('calculate_ik', CalculateIK, handle_calculate_IK)
-    ROS_INFO("Ready to receive an IK request");
-    
-    ros::spin();
-
-    return 0;
-}
-
-
 bool  handle_calculate_IK(std::vector<geometry_msgs::Pose>& poses, std::vector<trajectory_msgs::JointTrajectoryPoint>& response)
 {
     //std::vector<geometry_msgs::Pose>& request, std::vector<double>& response
     //geometry_msgs::Pose& request, trajectory_msgs::JointTrajectory& response)
-    ROS_INFO("Received %d eef-poses from the plan",poses.size());
+    ROS_INFO("Received %d eef-poses from the plan",(int)poses.size());
     if (poses.size() < 1){
         ROS_INFO("No valid poses received");
         return false;
     }
-    else
-    {
+    else{
         std::vector<trajectory_msgs::JointTrajectoryPoint> joint_trajectory_list;
-        double pi = 3.1415;
-        for (std::size_t x = 0; x < poses.size(); ++x)
-        {
+        double pi = 3.14159265359;
+        
+        double a1 = 0.35;
+        double a2 = 1.25;
+        double a3 = -0.054;
+        double d1 = 0.75;
+
+        double distance_j3_j4 = sqrt(pow(0.96,2) + pow((-0.054),2));
+        double distance_j4_j5 = 0.54;
+        
+        for (std::size_t x = 0; x < poses.size(); ++x){
             trajectory_msgs::JointTrajectoryPoint joint_trajectory_point = trajectory_msgs::JointTrajectoryPoint();
             
             double px = poses[x].position.x;
@@ -93,43 +83,37 @@ bool  handle_calculate_IK(std::vector<geometry_msgs::Pose>& poses, std::vector<t
 
             }
 
-                double cy = sqrt(M[0][0]*M[0][0] + M[1][0]*M[1][0]);
-                if (cy > 0.00000000001){
-                    roll = atan2( M[2][1],  M[2][2]);
-                    pitch = atan2(-M[2][0],  cy);
-                    yaw = atan2( M[1][0],  M[0][0]);
-                }
-                else{
-                    roll = atan2(-M[1][2],  M[1][1]);
-                    pitch = atan2(-M[2][0],  cy);
-                    yaw = 0.0;
-                }
+            double cy = sqrt(M[0][0]*M[0][0] + M[1][0]*M[1][0]);
+            if (cy > 0.00000000001){
+                roll = atan2( M[2][1],  M[2][2]);
+                pitch = atan2(-M[2][0],  cy);
+                yaw = atan2( M[1][0],  M[0][0]);
+            }
+            else{
+                roll = atan2(-M[1][2],  M[1][1]);
+                pitch = atan2(-M[2][0],  cy);
+                yaw = 0.0;
+            }
                  
-            //port this one  errors here python code
-            // (roll, pitch, yaw) = tf.transformations.euler_from_quaternion(
-            //        [poses[x].orientation.x, poses[x].orientation.y,
-            //            poses[x].orientation.z, poses[x].orientation.w])
-            //Arrays
             double d6_g = 0.303;
 
+            /* not all needed
             double R_ypr_adjusted[3][3] = {
-                {sin(pitch)*cos(roll)*cos(yaw) + sin(roll)*sin(yaw), -sin(pitch)*sin(roll)*cos(yaw) + sin(yaw)*cos(roll), cos(pitch)*cos(yaw)},
-                {sin(pitch)*sin(yaw)*cos(roll) - sin(roll)*cos(yaw), -sin(pitch)*sin(roll)*sin(yaw) - cos(roll)*cos(yaw), sin(yaw)*cos(pitch)},
-                {cos(pitch)*cos(roll), -sin(roll)*cos(pitch), -sin(pitch)}
+                {sin(yaw)*sin(roll) +sin(pitch)*cos(yaw)*cos(roll), sin(yaw)*cos(roll) -sin(pitch)*sin(roll)*cos(yaw),cos(yaw)*cos(pitch)},
+                {sin(yaw)*sin(pitch)*cos(roll) -sin(roll)*cos(yaw), -sin(yaw)*sin(pitch)*sin(roll) -cos(yaw)*cos(roll),sin(yaw)*cos(pitch)},
+                {                                      cos(pitch)*cos(roll),                                        -sin(roll)*cos(pitch),           -sin(pitch)}
             };
-
+            */
+            double R_ypr_adjusted[3][3] = {
+                {0.0, 0.0, cos(yaw)*cos(pitch)},
+                {0.0, 0.0, sin(yaw)*cos(pitch)},
+                {0.0, 0.0,         -sin(pitch)}
+            };
             double wc_x = px - d6_g *  R_ypr_adjusted[0][2];
             double wc_y = py - d6_g * R_ypr_adjusted[1][2];
             double wc_z = pz - d6_g * R_ypr_adjusted[2][2];
 
             theta1 = atan2(wc_y, wc_x);
-            double a1 = 0.35;
-            double a2 = 1.25;
-            double a3 = -0.054;
-            double d1 = 0.75;
-
-            double distance_j3_j4 = sqrt(pow(0.96,2) + pow((-0.054),2));
-            double distance_j4_j5 = 0.54;
 
             double angle_j3_j4 = pi - asin(a3 / distance_j3_j4);
             
@@ -144,14 +128,21 @@ bool  handle_calculate_IK(std::vector<geometry_msgs::Pose>& poses, std::vector<t
             theta2 = pi/2 -  acos((pow(distance_j3_j5,2) - pow(a2,2) - pow(distance_j2_j5,2)/(-2*a2*distance_j2_j5))) - atan2(wc_z - d1, sqrt(pow((wc_x - j2_x),2) + pow((wc_y - j2_y),2)));
 
             theta3 = pi/2 - asin(a3/distance_j3_j5) - acos((pow(distance_j2_j5,2) - pow(a2,2) - pow(distance_j3_j5,2))/(-2*a2*distance_j3_j5));
+            /* not all needed
+            double R3_6 [3][3]= {
+                        {sin(pitch)*sin(theta2 + theta3)*cos(roll)*cos(yaw - theta1) +sin(roll)*sin(yaw - theta1)*sin(theta2 + theta3) +cos(pitch)*cos(roll)*cos(theta2 + theta3), -sin(pitch)*sin(roll)*sin(theta2 + theta3)*cos(yaw - theta1) -sin(roll)*cos(pitch)*cos(theta2 + theta3) +sin(yaw - theta1)*sin(theta2 + theta3)*cos(roll), -sin(pitch)*cos(theta2 + theta3) +sin(theta2 + theta3)*cos(pitch)*cos(yaw - theta1)},
+                        {sin(pitch)*cos(roll)*cos(yaw - theta1)*cos(theta2 + theta3) +sin(roll)*sin(yaw - theta1)*cos(theta2 + theta3) -sin(theta2 + theta3)*cos(pitch)*cos(roll), -sin(pitch)*sin(roll)*cos(yaw - theta1)*cos(theta2 + theta3) +sin(roll)*sin(theta2 + theta3)*cos(pitch) +sin(yaw - theta1)*cos(roll)*cos(theta2 + theta3), sin(pitch)*sin(theta2 + theta3) +cos(pitch)*cos(yaw - theta1)*cos(theta2 + theta3)},
+                        {                                                                 sin(pitch)*sin(yaw - theta1)*cos(roll) -sin(roll)*cos(yaw - theta1),                                                                   -sin(pitch)*sin(roll)*sin(yaw - theta1) -cos(roll)*cos(yaw - theta1),                                           sin(yaw - theta1)*cos(pitch)}
+            };
+            */
 
             double R3_6 [3][3]= {
-                        {(1.0*sin(yaw)*sin(roll) + sin(pitch)*cos(yaw)*cos(roll))*sin(theta2 + theta3)*cos(theta1) + (sin(yaw)*sin(pitch)*cos(roll) - 1.0*sin(roll)*cos(yaw))*sin(theta1)*sin(theta2 + theta3) + 1.0*cos(pitch)*cos(roll)*cos(theta2 + theta3), -1.0*(-1.0*sin(yaw)*cos(roll) + sin(pitch)*sin(roll)*cos(yaw))*sin(theta2 + theta3)*cos(theta1) - 1.0*(sin(yaw)*sin(pitch)*sin(roll) + 1.0*cos(yaw)*cos(roll))*sin(theta1)*sin(theta2 + theta3) - 1.0*sin(roll)*cos(pitch)*cos(theta2 + theta3), 1.0*sin(yaw)*sin(theta1)*sin(theta2 + theta3)*cos(pitch) - 1.0*sin(pitch)*cos(theta2 + theta3) + 1.0*sin(theta2 + theta3)*cos(yaw)*cos(pitch)*cos(theta1)},
-                        {(1.0*sin(yaw)*sin(roll) + sin(pitch)*cos(yaw)*cos(roll))*cos(theta1)*cos(theta2 + theta3) + (sin(yaw)*sin(pitch)*cos(roll) - 1.0*sin(roll)*cos(yaw))*sin(theta1)*cos(theta2 + theta3) - 1.0*sin(theta2 + theta3)*cos(pitch)*cos(roll), -1.0*(-1.0*sin(yaw)*cos(roll) + sin(pitch)*sin(roll)*cos(yaw))*cos(theta1)*cos(theta2 + theta3) - 1.0*(sin(yaw)*sin(pitch)*sin(roll) + 1.0*cos(yaw)*cos(roll))*sin(theta1)*cos(theta2 + theta3) + 1.0*sin(roll)*sin(theta2 + theta3)*cos(pitch), 1.0*sin(yaw)*sin(theta1)*cos(pitch)*cos(theta2 + theta3) + 1.0*sin(pitch)*sin(theta2 + theta3) + 1.0*cos(yaw)*cos(pitch)*cos(theta1)*cos(theta2 + theta3)},
-                        {-(1.0*sin(yaw)*sin(roll) + sin(pitch)*cos(yaw)*cos(roll))*sin(theta1) + (sin(yaw)*sin(pitch)*cos(roll) - 1.0*sin(roll)*cos(yaw))*cos(theta1), 1.0*(-1.0*sin(yaw)*cos(roll) + sin(pitch)*sin(roll)*cos(yaw))*sin(theta1) - 1.0*(sin(yaw)*sin(pitch)*sin(roll) + 1.0*cos(yaw)*cos(roll))*cos(theta1), 1.0*sin(yaw)*cos(pitch)*cos(theta1) - 1.0*sin(theta1)*cos(yaw)*cos(pitch)}
+                        { 0.0, 0.0,  -sin(pitch)*cos(theta2 + theta3) +sin(theta2 + theta3)*cos(pitch)*cos(yaw - theta1)},
+                        {sin(pitch)*cos(roll)*cos(yaw - theta1)*cos(theta2 + theta3) +sin(roll)*sin(yaw - theta1)*cos(theta2 + theta3) -sin(theta2 + theta3)*cos(pitch)*cos(roll), -sin(pitch)*sin(roll)*cos(yaw - theta1)*cos(theta2 + theta3) +sin(roll)*sin(theta2 + theta3)*cos(pitch) +sin(yaw - theta1)*cos(roll)*cos(theta2 + theta3), sin(pitch)*sin(theta2 + theta3) +cos(pitch)*cos(yaw - theta1)*cos(theta2 + theta3)},
+                        {0.0, 0.0, sin(yaw - theta1)*cos(pitch)}
             };
 
-            //mathmodule?
+            //mathmodule? /only 5 individually
             theta4 = atan2(R3_6[2][2], -R3_6[0][2]);
             theta5 = atan2(sqrt(pow(R3_6[0][2],2) + pow(R3_6[2][2],2)) , R3_6[1][2]);
             theta6 = atan2(-R3_6[1][1], R3_6[1][0]);
@@ -160,7 +151,22 @@ bool  handle_calculate_IK(std::vector<geometry_msgs::Pose>& poses, std::vector<t
             joint_trajectory_point.positions = {theta1, theta2, theta3, theta4, theta5, theta6};
             joint_trajectory_list.push_back(joint_trajectory_point);
         }
-        ROS_INFO("length of Joint Trajectory List: %d", joint_trajectory_list.size());
+        ROS_INFO("length of Joint Trajectory List: %d", (int)joint_trajectory_list.size());
     }
     return true;
 }
+int main(int argc, char **argv)
+{   
+    ros::init(argc, argv, "IK_server");
+    ros::NodeHandle nh;
+    //ros::ServiceClient client = nh.serviceClient<kuka_arm::CalculateIK>("calculate_ik");
+    ros::ServiceServer service = nh.advertiseService("calculate_ik", handle_calculate_IK);
+    //s = ros.Service('calculate_ik', CalculateIK, handle_calculate_IK)
+    ROS_INFO("Ready to receive an IK request");
+    
+    ros::spin();
+
+    return 0;
+}
+
+
