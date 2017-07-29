@@ -103,7 +103,7 @@ def test_code(test_case):
                     [sin(y),  cos(y), 0],
                     [     0,       0,     1]])
     R_y_DH_URDF = Rot_y.subs(p, -pi/2)
-    R_z_DH_URDF = Rot_z.subs(y, -pi/2)
+    R_z_DH_URDF = Rot_z.subs(y, pi)
     R_correction_convention = R_z_DH_URDF * R_y_DH_URDF
                 
     ## 90 degree rotation about the y-axis
@@ -153,19 +153,21 @@ def test_code(test_case):
     ##distance_j5_eef = d7 + d6 # 0.303m + 0 m urdf from j 5-6-EEF along x axis
     distance_j5_eef = d7.subs(s)+ d6.subs(s)
     #align on x axis as defined in urdf.zacro file
-    eef_adjustment = Matrix([[distance_j5_eef],
+    eef_adjustment = Matrix([   [0],
                                 [0],
-                                [0]]) 
+                                [distance_j5_eef]]) 
 
     R_ypr = Rot_z * Rot_y * Rot_x
     
     ## Correct orientation between DH convention and URDF 
 
-    R_ypr_adjusted = R_ypr * R_correction_convention
+    R_ypr_adjusted = R_ypr * R_correction_convention.T
+    print(R_ypr_adjusted)
+    print("\n")
     R_ypr_adjusted = R_ypr_adjusted.subs({'r': roll, 'p': pitch, 'y': yaw})
     
     ## by the definition in the lecture //!()[https://d17h27t6h515a5.cloudfront.net/topher/2017/May/592d74d1_equations/equations.png]
-    wrist_centre = eef_position -  R_ypr.subs({'r' : roll, 'p' : pitch,  'y': yaw}) * eef_adjustment
+    wrist_centre = eef_position -  R_ypr_adjusted * eef_adjustment
     #calculating theta1 from atan2(y_c, x_c)
     theta1 = atan2(wrist_centre[1,0], wrist_centre[0,0])
 
@@ -217,37 +219,32 @@ def test_code(test_case):
 
     ## Find R3_6 from orientation data
 
-    ## R_rpy = R_ypr
     R0_3 = T0_3[0:3,0:3]
     R0_3 = R0_3.evalf(subs={quaternion1: theta1, quaternion2: theta2, quaternion3: theta3})
 
     ## the inverse matrix cancel the first three rotations
-    R3_6 = R0_3.inv() * R_ypr_adjusted
+    R3_6 = R0_3.inv() * R_ypr_adjusted 
     
     print ("\n T0_3:")
     print(T0_3)
     print ("\n R3_6:")
     print(R3_6)
 
-    ## Find iota, kappa, zetta euler angles as done in lesson 2 part 8. ()[https://d17h27t6h515a5.cloudfront.net/topher/2017/May/591e1115_image-0/image-0.png]
-    syp = sqrt(R3_6[1, 2]*R3_6[1, 2] +R3_6[1, 0]*R3_6[1, 0])
+    sin_q4 = R3_6[2, 2]
+    cos_q4 =  -R3_6[0, 2]
 
-    if syp > 0.000001:
-        theta6_p = atan2( R3_6[1, 2],  R3_6[1, 0])
-        theta5_p = atan2( syp,       R3_6[1, 1])
-        theta4_p = atan2( R3_6[2, 1], -R3_6[0, 1])
-    else:
-        theta6_p = atan2(-R3_6[2, 0],  R3_6[2, 2])
-        theta5_p = atan2( syp,       R3_6[1, 1])
-        theta4_p = 0.0
+    sin_q5 = sqrt(R3_6[0, 2]**2 + R3_6[2, 2]**2) 
+    cos_q5 = R3_6[1, 2]
 
+    sin_q6 = -R3_6[1, 1]
+    cos_q6 = R3_6[1, 0] 
 
-    syn = -sqrt(R3_6[1, 2]*R3_6[1, 2] +R3_6[1, 0]*R3_6[1, 0])
-
-    theta6, theta5, theta4 = theta6_p, theta5_p, theta4_p
+    theta4 = atan2(sin_q4, cos_q4)
+    theta5 = atan2(sin_q5, cos_q5)
+    theta6 = atan2(sin_q6, cos_q6)
 
     ## euler_from_matrix assuming a yzy rotation (j4 : y, j5: z, j6: y)
-    #theta4, theta5, theta6 = tf.transformations.euler_from_matrix(R3_6.tolist(), 'ryzy')
+    #theta4, theta5, theta6 = tf.transformations.euler_from_matrix(R3_6.tolist(), 'rzyx')
     print ("\n Test case: ")
     print (test_case_number)
     print ("\n theta1, theta2, theta3 ,theta4, theta5, theta6:")
@@ -317,6 +314,6 @@ def test_code(test_case):
 
 if __name__ == "__main__":
     # Change test case number for different scenarios
-    test_case_number = 1
+    test_case_number = 3
 
     test_code(test_cases[test_case_number])

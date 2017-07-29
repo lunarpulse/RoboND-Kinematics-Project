@@ -107,8 +107,8 @@ R_y_URDF_DH = Matrix([[ cos(-pi/2), 0, sin(-pi/2)],
                     [          0, 1,          0],
                     [-sin(-pi/2), 0, cos(-pi/2)]])
 
-R_z_URDF_DH = Matrix([[cos(-pi/2), -sin(-pi/2), 0], 
-                    [sin(-pi/2),  cos(-pi/2), 0],
+R_z_URDF_DH = Matrix([[cos(pi), -sin(pi), 0], 
+                    [sin(pi),  cos(pi), 0],
                     [     0,       0,     1]])
 ```
 
@@ -156,8 +156,10 @@ R_z = Matrix([[cos(yaw), -sin(yaw), 0],
 R_ypr = R_z * R_y * R_x
 
 #Rzyx=  Matrix([[cos(pitch)*cos(yaw), -sin(yaw)*cos(pitch), sin(pitch)], [sin(roll)*sin(pitch)*cos(yaw) + sin(yaw)*cos(roll), -sin(roll)*sin(pitch)*sin(yaw) + cos(roll)*cos(yaw), -sin(roll)*cos(pitch)], [sin(roll)*sin(yaw) - sin(pitch)*cos(roll)*cos(yaw), sin(roll)*cos(yaw) + sin(pitch)*sin(yaw)*cos(roll), cos(roll)*cos(pitch)]])
+## Correct orientation between DH convention and URDF 
+R_ypr_adjusted = R_ypr* (R_z_DH_URDF * R_y_DH_URDF).T
 
-w_c = eef_position - R_ypr * eef_adjustment
+wrist_centre = eef_position - R_ypr_adjusted*  * eef_adjustment
 ```
 The distance from j5 to end effector (gripper) is the tsum of d7 and d6. the end effector was assumed to point x axis by applying orthonormal vectors with *eef_adjustment* to the homogeneous transformation formed with yaw, pitch, roll values substituted from the trajectory values from the *joint_trajectory_list*.
 
@@ -175,15 +177,12 @@ The rest of theta 4,5,6 can be found from inverse orientation kinematics using k
 
 This partial rotation matrix can be derived from multiplication of T0_3.T to adjust yaw pitch roll Rotation matrix, which represent the state of endeffector. 
 ```python
-## Correct orientation between DH convention and URDF 
-R_ypr_adjusted = R_ypr* R_z_DH_URDF * R_y_DH_URDF
+
 ## R_rpy = R_ypr 
 R0_3 = Matrix([[T0_3[0,0], T0_3[0,1], T0_3[0,2]],
             [T0_3[1,0], T0_3[1,1], T0_3[1,2]],
             [T0_3[2,0], T0_3[2,1], T0_3[2,2]]])
 R0_3 = R0_3.evalf(subs={quaternion1: theta1, quaternion2: theta2, quaternion3: theta3})
-
-# R0_3 = Matrix([[sin(quaternion2 + quaternion3)*cos(quaternion1), cos(quaternion1)*cos(quaternion2 + quaternion3), -sin(quaternion1)], [sin(quaternion1)*sin(quaternion2 + quaternion3), sin(quaternion1)*cos(quaternion2 + quaternion3), cos(quaternion1)], [cos(quaternion2 + quaternion3), -sin(quaternion2 + quaternion3), 0]])
 
 ## the inverse matrix cancel the first three rotations
 R3_6 = R0_3.inv() * R_ypr_adjusted
@@ -200,20 +199,12 @@ theta4, theta5, theta6 = tf.transformations.euler_from_matrix(R3_6.tolist(), "ry
 #               [sin(q3)*cos(q2),                               cos(q3),                        sin(q2)*sin(q3)],
 #               [-sin(q2)*cos(q2)*cos(q3) - sin(q2)*cos(q2), sin(q2)*sin(q3), -sin(q2)**2*cos(q3) + cos(q2)**2]])
 
-sy = sqrt(R3_6[1, 2]*R3_6[1, 2] +R3_6[1, 0]*R3_6[1, 0])
+theta4_p = atan2(R3_6[2, 2], -R3_6[0, 2])
 
-if sy > 0.000000001:
-theta6_p = atan2( R3_6[1, 2],  R3_6[1, 0])
-theta5_p = atan2( sy,       R3_6[1, 1])
-theta4_p = atan2( R3_6[2, 1], -R3_6[0, 1])
+theta5_p = atan2(sqrt(R3_6[0, 2]**2 + R3_6[2, 2]**2) , R3_6[1, 2])
+theta5_n = atan2(-sqrt(R3_6[0, 2]**2 + R3_6[2, 2]**2) , R3_6[1, 2])
 
-theta5_n = atan2( -sy,       R3_6[1, 1])
-else:
-theta6_p = atan2(-R3_6[2, 0],  R3_6[2, 2])
-theta5_p = atan2( sy,       R3_6[1, 1])
-theta4_p = 0.0
-
-theta5_n = atan2( -sy,       R3_6[1, 1])
+theta6_p = atan2(-R3_6[1, 1], R3_6[1, 0])
 
 theta6_n, theta4_n = theta6_p, theta4_p
 ```
@@ -278,6 +269,7 @@ Speaking of the programming language, python is a slow language, and is not suit
 
 The sympy library is good for showing the formula creation for a generalised form, once the system, the machine setting, is determined, this can be ported to a low level memory manipulation, array or even pointers. Especially in this form many repeatative trigometry calculation is expected. We only need a few matrix, including *T0_EEF* and *T0_3*, these two matrix can be made to an array and boost the calculation speed instead of using sympy library. 
 
+`./kuka_arm/src/IK_server.cpp` contains an attempt to port the essensce of this prject as cpp service. At this stage some of the struct definition is not known to me, it is still under writing phase. Most of the project core logics is already ported to C++ notation. I guess this node service had Calculate_IK.h before made it into this project for students to practice.
 
 Excessive rotations of end effector was observed. I assume this is due to the multiple solutions for each theta angles, sinage duality from square root functions and also the nature of revolute joints. The improvement for this issue is investigated conditioning the IK solver to choose more realistic solution, preferring a shorter distance or angle amongst the solutions.
 

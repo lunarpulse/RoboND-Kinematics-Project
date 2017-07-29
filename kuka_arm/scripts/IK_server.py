@@ -75,7 +75,7 @@ def handle_calculate_IK(req):
                         [sin(y),  cos(y), 0],
                         [     0,       0,     1]])
         R_y_DH_URDF = Rot_y.subs(p, -pi/2)
-        R_z_DH_URDF = Rot_z.subs(y, -pi/2)
+        R_z_DH_URDF = Rot_z.subs(y, pi)
         R_correction_convention = R_z_DH_URDF * R_y_DH_URDF
                     
         ## 90 degree rotation about the y-axis
@@ -94,14 +94,9 @@ def handle_calculate_IK(req):
         #T5_6 = createTMatrix(alpha5, a5, d6, quaternion6 ).subs(s)
         #T6_EEF = createTMatrix(alpha6, a6, d7, quaternion7 ).subs(s)
 
-        T0_2 = T0_1 * T1_2
         #simplify only T0_EFF and T0_3 as others are intermediate calculations no need of simplification in optimistaion phase
-        T0_3 = simplify(T0_2 * T2_3)
-        #T0_4 = T0_3 * T3_4
-        #T0_5 = T0_4 * T4_5
-        #T0_6 = T0_5 * T5_6 
-        #T0_EEF = T0_6 * T6_EEF
-
+        T0_3 = simplify(T0_1 * T1_2 * T2_3)
+        
         ## Corrected DH convention to URDF frame
         #T_corrected = simplify(T0_EEF * R_correction) 
         prev_theta6, prev_theta5, prev_theta4 = 0,0,0
@@ -141,19 +136,19 @@ def handle_calculate_IK(req):
             ##distance_j5_eef = d7 + d6 # 0.303m + 0 m urdf from j 5-6-EEF along x axis
             distance_j5_eef = d7.subs(s)+ d6.subs(s)
             #align on x axis as defined in urdf.zacro file
-            eef_adjustment = Matrix([[distance_j5_eef],
+            eef_adjustment = Matrix([[0],
                                      [0],
-                                     [0]]) 
+                                     [distance_j5_eef]]) 
 
             R_ypr = Rot_z * Rot_y * Rot_x
             
             ## Correct orientation between DH convention and URDF 
 
-            R_ypr_adjusted = R_ypr * R_correction_convention
+            R_ypr_adjusted = R_ypr * R_correction_convention.T
             R_ypr_adjusted = R_ypr_adjusted.subs({'r': roll, 'p': pitch, 'y': yaw})
             
             ## by the definition in the lecture //!()[https://d17h27t6h515a5.cloudfront.net/topher/2017/May/592d74d1_equations/equations.png]
-            wrist_centre = eef_position - R_ypr.subs({'r' : roll, 'p' : pitch,  'y': yaw}) * eef_adjustment
+            wrist_centre = eef_position - R_ypr_adjusted * eef_adjustment
 
             #calculating theta1 from atan2(y_c, x_c)
             theta1 = atan2(wrist_centre[1,0], wrist_centre[0,0])
@@ -217,20 +212,12 @@ def handle_calculate_IK(req):
             ## euler_from_matrix assuming a yzy rotation (j4 : y, j5: z, j6: y)
             #theta4, theta5, theta6 = tf.transformations.euler_from_matrix(R3_6.tolist(), 'ryzy')
 
-            sy = sqrt(R3_6[1, 2]*R3_6[1, 2] +R3_6[1, 0]*R3_6[1, 0])
+            theta4_p = atan2(R3_6[2, 2], -R3_6[0, 2])
 
-            if sy > 0.000000001:
-                theta6_p = atan2( R3_6[1, 2],  R3_6[1, 0])
-                theta5_p = atan2( sy,       R3_6[1, 1])
-                theta4_p = atan2( R3_6[2, 1], -R3_6[0, 1])
+            theta5_p = atan2(sqrt(R3_6[0, 2]**2 + R3_6[2, 2]**2) , R3_6[1, 2])
+            theta5_n = atan2(-sqrt(R3_6[0, 2]**2 + R3_6[2, 2]**2) , R3_6[1, 2])
 
-                theta5_n = atan2( -sy,       R3_6[1, 1])
-            else:
-                theta6_p = atan2(-R3_6[2, 0],  R3_6[2, 2])
-                theta5_p = atan2( sy,       R3_6[1, 1])
-                theta4_p = 0.0
-
-                theta5_n = atan2( -sy,       R3_6[1, 1])
+            theta6_p = atan2(-R3_6[1, 1], R3_6[1, 0])
 
             theta6_n, theta4_n = theta6_p, theta4_p
             
