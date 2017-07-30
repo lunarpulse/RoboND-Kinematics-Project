@@ -16,6 +16,7 @@
 
 
 [//]: # (Image References)
+[Kr210]: ./misc_images/DHdiagram.png
 [image0]: https://d17h27t6h515a5.cloudfront.net/topher/2017/May/592d6644_dh-transform-matrix/dh-transform-matrix.png
 [image1]: ./misc_images/IK_debug_resized.png
 [image2]: ./misc_images/wrongPlan_resized.png
@@ -24,7 +25,8 @@
 [image5]: ./misc_images/fasterDebug.png
 [image6]: ./misc_images/which-programs-are-fastest-middle.png
 [Triangles]: ./misc_images/6dofkukakr210.png
-
+[jointAngles]: ./misc_images/jointAnglesAxes.png
+[kr210_links]:./misc_images/kr210_links.png
 ## [Rubric](https://review.udacity.com/#!/rubrics/972/view) Points
 ### Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
 
@@ -32,7 +34,17 @@
 ## Kinematic Analysis
 ### 1. Run the forward_kinematics demo and evaluate the kr210.urdf.xacro file to perform kinematic analysis of Kuka KR210 robot and derive its DH parameters.
 
-Using the [kr210.urdf.xacro](./kuka_arm/urdf/kr210.urdf.xacro), the DH parameter table was filled.
+
+![joint Angles][jointAngles]
+
+![Kuka links][kr210_links]
+
+The image above shows the joint angles and links. These are from lesson videos.
+
+![Kuka drawing][Kr210]
+
+The above [drawing](./kr210Drawingv1.pdf) shows the dimensions of each link and overall joint lengths.
+By using the [kr210.urdf.xacro](./kuka_arm/urdf/kr210.urdf.xacro), the DH parameter table was filled.
 
 0 | T | alpha *i-1* | a *i-1* | d*i* | quaternion*i*|
 --- | --- | --- | --- | --- | ---|
@@ -269,10 +281,8 @@ Speaking of the programming language, python is a slow language, and is not suit
 
 The sympy library is good for showing the formula creation for a generalised form, once the system, the machine setting, is determined, this can be ported to a low level memory manipulation, array or even pointers. Especially in this form many repeatative trigometry calculation is expected. We only need a few matrix, including *T0_EEF* and *T0_3*, these two matrix can be made to an array and boost the calculation speed instead of using sympy library. 
 
-`./kuka_arm/src/IK_server.cpp` contains an attempt to port the essensce of this prject as cpp service. At this stage some of the struct definition is not known to me, it is still under writing phase. Most of the project core logics is already ported to C++ notation. I guess this node service had Calculate_IK.h before made it into this project for students to practice.
+`./kuka_arm/src/IK_server.cpp` contains an attempt to port the essensce of this prject as cpp service. At this stage some of the struct definition is not known to me, it is still under writing phase. Most of the project core logics is already ported to C++ notation. I guess this node service had Calculate_IK.h before made it into this project for students to practice. As this contains highly optimised code, only containing the essential matrix for the very system, the performance is expected to be much better. However, still the angle choice is the remained issue to get the stable movement of the arm without unneccesary rotations of the spherical wrist.
 
 Excessive rotations of end effector was observed. I assume this is due to the multiple solutions for each theta angles, sinage duality from square root functions and also the nature of revolute joints. The improvement for this issue is investigated conditioning the IK solver to choose more realistic solution, preferring a shorter distance or angle amongst the solutions.
-
-
 
 
